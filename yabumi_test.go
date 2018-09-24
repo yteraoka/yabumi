@@ -7,12 +7,12 @@ import (
 )
 
 func TestParseField(t *testing.T) {
-	v := parseField("name,value,true")
+	v := parseField("name|value|true")
 	if v.Title != "name" || v.Value != "value" || v.Short != true {
 		t.Error("parse failed")
 	}
 
-	v = parseField("name,value,0")
+	v = parseField("name|value|0")
 	if v.Title != "name" || v.Value != "value" || v.Short != false {
 		t.Error("parse failed")
 	}
@@ -76,8 +76,8 @@ func TestBuildJSON3(t *testing.T) {
 		"--attachment",
 		"--title", title,
 		"--color", color,
-		"--field", "Environment,production,true",
-		"--field", "Service,test,1",
+		"--field", "Environment|production|true",
+		"--field", "Service|test|1",
 	}
 	var opts Options
 	_, err := flags.ParseArgs(&opts, args)

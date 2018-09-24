@@ -32,7 +32,7 @@ type Options struct {
 	ThumbUrl        string   `long:"thumb-url" description:"thumbnail image url (attachment)"`
 	Footer          string   `long:"footer" description:"footer text (attachment)"`
 	FooterIcon      string   `long:"footer-icon" description:"footer icon url (attachment)"`
-	Fields          []string `short:"f" long:"field" description:"title,value,short (attachment)"`
+	Fields          []string `short:"f" long:"field" description:"\"title|value|short\" (attachment)"`
 	DisableMarkdown bool     `short:"M" long:"disable-markdown" description:"disable markdown processing"`
 	Debug           bool     `short:"D" long:"debug" description:"enable debug mode. do not send request, show json only"`
 	Version         bool     `short:"v" long:"version" description:"show version"`
@@ -73,7 +73,7 @@ type Field struct {
 }
 
 func parseField(s string) Field {
-	p := strings.SplitN(s, ",", 3)
+	p := strings.SplitN(s, "|", 3)
 	var f Field
 	f.Title = p[0]
 	f.Value = p[1]
