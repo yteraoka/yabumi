@@ -1,6 +1,6 @@
 BINARY=yabumi
 
-VERSION := 0.1.0
+VERSION := 0.1.1
 DATE := `date +%FT%T%z`
 TARGET := $(BINARY) $(BINARY).mac $(BINARY).exe
 
