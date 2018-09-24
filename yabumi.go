@@ -19,23 +19,24 @@ var (
 )
 
 type Options struct {
-	Channel    string   `short:"C" long:"channel" description:"slack channel to post"`
-	UseAttach  bool     `short:"a" long:"attachment" description:"use attachment"`
-	Title      string   `short:"t" long:"title" description:"Title text (attachment)"`
-	TitleLink  string   `long:"title-link" description:"Title link url (attachment)"`
-	Color      string   `short:"c" long:"color" description:"Color code or 'good', 'warning', 'danger' (attachment)"`
-	PreText    string   `short:"p" long:"pretext" description:"optional text that appears above the message attachment block (attachment)"`
-	AuthorName string   `long:"author-name" description:"author_name (attachment)"`
-	AuthorLink string   `long:"author-link" description:"author_link (attachment)"`
-	AuthorIcon string   `long:"author-icon" description:"author_icon (attachment)"`
-	ImageUrl   string   `long:"image-url" description:"image url (attachment)"`
-	ThumbUrl   string   `long:"thumb-url" description:"thumbnail image url (attachment)"`
-	Footer     string   `long:"footer" description:"footer text (attachment)"`
-	FooterIcon string   `long:"footer-icon" description:"footer icon url (attachment)"`
-	Fields     []string `short:"f" long:"field" description:"title,value,short (attachment)"`
-	Debug      bool     `short:"D" long:"debug" description:"enable debug mode. do not send request, show json only"`
-	Version    bool     `short:"v" long:"version" description:"show version"`
-	Args       struct {
+	Channel         string   `short:"C" long:"channel" description:"slack channel to post"`
+	UseAttach       bool     `short:"a" long:"attachment" description:"use attachment"`
+	Title           string   `short:"t" long:"title" description:"Title text (attachment)"`
+	TitleLink       string   `long:"title-link" description:"Title link url (attachment)"`
+	Color           string   `short:"c" long:"color" description:"Color code or 'good', 'warning', 'danger' (attachment)"`
+	PreText         string   `short:"p" long:"pretext" description:"optional text that appears above the message attachment block (attachment)"`
+	AuthorName      string   `long:"author-name" description:"author_name (attachment)"`
+	AuthorLink      string   `long:"author-link" description:"author_link (attachment)"`
+	AuthorIcon      string   `long:"author-icon" description:"author_icon (attachment)"`
+	ImageUrl        string   `long:"image-url" description:"image url (attachment)"`
+	ThumbUrl        string   `long:"thumb-url" description:"thumbnail image url (attachment)"`
+	Footer          string   `long:"footer" description:"footer text (attachment)"`
+	FooterIcon      string   `long:"footer-icon" description:"footer icon url (attachment)"`
+	Fields          []string `short:"f" long:"field" description:"title,value,short (attachment)"`
+	DisableMarkdown bool     `short:"M" long:"disable-markdown" description:"disable markdown processing"`
+	Debug           bool     `short:"D" long:"debug" description:"enable debug mode. do not send request, show json only"`
+	Version         bool     `short:"v" long:"version" description:"show version"`
+	Args            struct {
 		Url string `description:"slack webhook endpoint url"`
 	} `positional-args:"yes"`
 }
@@ -43,6 +44,7 @@ type Options struct {
 type SlackMessage struct {
 	Text        string       `json:"text,omitempty"`
 	Channel     string       `json:"channel,omitempty"`
+	Markdown    bool         `json:"mrkdwn"`
 	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
@@ -148,6 +150,12 @@ func buildJSON(text string, opts Options) []byte {
 		m.Attachments = append(m.Attachments, a)
 	} else {
 		m.Text = text
+	}
+
+	if opts.DisableMarkdown {
+		m.Markdown = false
+	} else {
+		m.Markdown = true
 	}
 
 	// b, err := json.Marshal(m)
