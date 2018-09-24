@@ -33,3 +33,22 @@ Help Options:
 Arguments:
   Url:               slack webhook endpoint url
 ```
+
+```
+$ fortune | ./yabumi https://hooks.slack.com/services/xxx/yyy/zzzz
+```
+
+
+```
+$ echo -e "むかしむかし、あるところにおじいさんとおばあさんが..." | ./yabumi \
+ -a \
+ --color good \
+ --pretext "ぷれてきすと" \
+ --author-name "昔話ボット" \
+ --author-icon "https://3.bp.blogspot.com/-ixMmPNVQHYs/Ws2uyQlDBxI/AAAAAAABLRQ/FtMx5Tz8SGcKtPLC1IDbc4m9EVQ39edmQCLcBGAs/s180-c/fantasy_akuma_purson.png" \
+ --title "浦島太郎" \
+ --image-url https://2.bp.blogspot.com/-wZyXlcpBXBU/WvQHkT9wodI/AAAAAAABL78/p8xjPHseoM8E-FSdZDATMMSlAiy0EhxIQCLcBGAs/s180-c/mukashibanashi_ryoushi.png \
+ --field "ジャンル,昔話,true" \
+ --field "タグ,亀、海,true" \
+ https://hooks.slack.com/services/xxx/yyy/zzzz
+```
