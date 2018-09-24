@@ -1,8 +1,8 @@
 package main
 
 import (
-	flags "github.com/jessevdk/go-flags"
 	"github.com/bitly/go-simplejson"
+	flags "github.com/jessevdk/go-flags"
 	"testing"
 )
 
