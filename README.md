@@ -34,10 +34,17 @@ Arguments:
   Url:               slack webhook endpoint url
 ```
 
+Simple message
+--------------
+
 ```
 $ fortune | ./yabumi https://hooks.slack.com/services/xxx/yyy/zzzz
 ```
 
+![capture](https://github.com/yteraoka/yabumi/raw/master/images/slack-capture2.png)
+
+Attachment
+----------
 
 ```
 $ echo -e "むかしむかし、あるところにおじいさんとおばあさんが..." | ./yabumi \
@@ -52,3 +59,5 @@ $ echo -e "むかしむかし、あるところにおじいさんとおばあさ
  --field "タグ,亀、海,true" \
  https://hooks.slack.com/services/xxx/yyy/zzzz
 ```
+
+![capture](https://github.com/yteraoka/yabumi/raw/master/images/slack-capture1.png)
