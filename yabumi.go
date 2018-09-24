@@ -27,6 +27,7 @@ type Options struct {
 	PreText    string   `short:"p" long:"pretext" description:"optional text that appears above the message attachment block (attachment)"`
 	AuthorName string   `long:"author-name" description:"author_name (attachment)"`
 	AuthorLink string   `long:"author-link" description:"author_link (attachment)"`
+	AuthorIcon string   `long:"author-icon" description:"author_icon (attachment)"`
 	ImageUrl   string   `long:"image-url" description:"image url (attachment)"`
 	ThumbUrl   string   `long:"thumb-url" description:"thumbnail image url (attachment)"`
 	Footer     string   `long:"footer" description:"footer text (attachment)"`
@@ -139,6 +140,7 @@ func buildJSON(text string, opts Options) []byte {
 		}
 		a.AuthorName = opts.AuthorName
 		a.AuthorLink = opts.AuthorLink
+		a.AuthorIcon = opts.AuthorIcon
 		a.ImageUrl = opts.ImageUrl
 		a.ThumbUrl = opts.ThumbUrl
 		a.Footer = opts.Footer
