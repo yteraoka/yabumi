@@ -32,6 +32,7 @@ type Options struct {
 	ThumbUrl        string   `long:"thumb-url" description:"thumbnail image url (attachment)"`
 	Footer          string   `long:"footer" description:"footer text (attachment)"`
 	FooterIcon      string   `long:"footer-icon" description:"footer icon url (attachment)"`
+	Message         string   `short:"m" long:"message" description:"message"`
 	Fields          []string `short:"f" long:"field" description:"\"title|value|short\" (attachment)"`
 	DisableMarkdown bool     `short:"M" long:"disable-markdown" description:"disable markdown processing"`
 	Debug           bool     `short:"D" long:"debug" description:"enable debug mode. do not send request, show json only"`
@@ -169,6 +170,7 @@ func buildJSON(text string, opts Options) []byte {
 
 func main() {
 	var opts Options
+	var text string
 	_, err := flags.Parse(&opts)
 	if err != nil {
 		os.Exit(1)
@@ -181,8 +183,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	bytes, err := ioutil.ReadAll(os.Stdin)
-	text := strings.TrimRight(string(bytes), "\n")
+	if opts.Message == "" {
+		bytes, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			panic(err)
+		}
+		text = strings.TrimRight(string(bytes), "\n")
+	} else {
+		text = opts.Message
+	}
 
 	b := buildJSON(text, opts)
 
