@@ -25,6 +25,7 @@ Application Options:
       --thumb-url=        thumbnail image url (attachment)
       --footer=           footer text (attachment)
       --footer-icon=      footer icon url (attachment)
+  -m, --message=          pass message instead of read stdin
   -f, --field=            "title|value|short" (attachment)
   -M, --disable-markdown  disable markdown processing
   -D, --debug             enable debug mode. do not send request, show json only

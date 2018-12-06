@@ -32,7 +32,7 @@ type Options struct {
 	ThumbUrl        string   `long:"thumb-url" description:"thumbnail image url (attachment)"`
 	Footer          string   `long:"footer" description:"footer text (attachment)"`
 	FooterIcon      string   `long:"footer-icon" description:"footer icon url (attachment)"`
-	Message         string   `short:"m" long:"message" description:"message"`
+	Message         string   `short:"m" long:"message" description:"pass message instead of read stdin"`
 	Fields          []string `short:"f" long:"field" description:"\"title|value|short\" (attachment)"`
 	DisableMarkdown bool     `short:"M" long:"disable-markdown" description:"disable markdown processing"`
 	Debug           bool     `short:"D" long:"debug" description:"enable debug mode. do not send request, show json only"`
