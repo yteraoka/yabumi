@@ -31,6 +31,6 @@ test:
 	GO111MODULE=on go test
 
 clean:
-	rm -f $(BINARY) $(BINARY).*_amd64 *.exe
+	rm -f $(BINARY) $(BINARY).*_amd64 $(BINARY).*_arm $(BINARY).*_arm64 *.exe
 
 .PHONY: default clean test 
