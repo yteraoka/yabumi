@@ -13,3 +13,5 @@
 
 *_amd64
 yabumi
+# Added by goreleaser init:
+dist/
