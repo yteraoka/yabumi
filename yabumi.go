@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	version string
-	date    string
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
 )
 
 type Options struct {
@@ -179,6 +180,7 @@ func main() {
 	if opts.Version {
 		fmt.Println("yabumi (Post message to slack)")
 		fmt.Println("version:", version)
+		fmt.Println("commit:", commit)
 		fmt.Println("build date:", date)
 		os.Exit(0)
 	}
