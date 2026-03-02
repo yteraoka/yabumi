@@ -2,7 +2,7 @@ module github.com/yteraoka/yabumi
 
 go 1.24
 
-toolchain go1.25.6
+toolchain go1.26.0
 
 require (
 	github.com/bitly/go-simplejson v0.5.1
