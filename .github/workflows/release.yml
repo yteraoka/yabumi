@@ -8,10 +8,6 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-  pull-requests: read
-
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
@@ -38,6 +34,20 @@ jobs:
           version: v2
           args: build --snapshot --clean
 
+      # GitHub App から一時的なトークンを生成
+      - name: Generate Token
+        if: startsWith(github.ref, 'refs/tags/')
+        id: app-token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          # 自分のリポジトリと Tap リポジトリの両方に権限を絞る（任意）
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            yabumi
+            homebrew-tools
+
       - name: Run GoReleaser release (Tag Push)
         if: startsWith(github.ref, 'refs/tags/')
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
@@ -45,4 +55,4 @@ jobs:
           version: v2
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
