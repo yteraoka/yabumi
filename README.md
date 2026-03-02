@@ -41,16 +41,16 @@ Arguments:
 Simple message
 --------------
 
-```
+```bash
 $ fortune | ./yabumi https://hooks.slack.com/services/xxx/yyy/zzzz
 ```
 
-![capture](https://github.com/yteraoka/yabumi/raw/master/images/slack-capture2.png)
+![capture](images/slack-capture2.png)
 
 Attachment
 ----------
 
-```
+```bash
 $ echo -e "むかしむかし、あるところにおじいさんとおばあさんが..." | ./yabumi \
  -a \
  --color good \
@@ -64,4 +64,4 @@ $ echo -e "むかしむかし、あるところにおじいさんとおばあさ
  https://hooks.slack.com/services/xxx/yyy/zzzz
 ```
 
-![capture](https://github.com/yteraoka/yabumi/raw/master/images/slack-capture1.png)
+![capture](images/slack-capture1.png)
