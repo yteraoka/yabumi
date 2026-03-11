@@ -45,7 +45,7 @@ changelog:
 homebrew_casks:
   - repository:
       owner: yteraoka
-      name: homebrew-tools
+      name: homebrew-tap
       token: "{{ .Env.GITHUB_TOKEN }}"
       pull_request:
         enabled: false

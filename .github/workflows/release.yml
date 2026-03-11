@@ -46,7 +46,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: |
             yabumi
-            homebrew-tools
+            homebrew-tap
 
       - name: Run GoReleaser release (Tag Push)
         if: startsWith(github.ref, 'refs/tags/')
