@@ -28,7 +28,13 @@ func TestBuildJSON1(t *testing.T) {
 	}
 	b := buildJSON(text, opts)
 	js, err := simplejson.NewJson(b)
+	if err != nil {
+		t.Error(err)
+	}
 	js_text, err := js.Get("text").String()
+	if err != nil {
+		t.Error(err)
+	}
 	if text != js_text {
 		t.Errorf("text in JSON is unexpected: %s != %s", text, js_text)
 	}
@@ -48,6 +54,9 @@ func TestBuildJSON2(t *testing.T) {
 	}
 	b := buildJSON(text, opts)
 	js, err := simplejson.NewJson(b)
+	if err != nil {
+		t.Error(err)
+	}
 
 	js_text, err := js.Get("attachments").GetIndex(0).Get("text").String()
 	if err != nil {
@@ -86,6 +95,9 @@ func TestBuildJSON3(t *testing.T) {
 	}
 	b := buildJSON(text, opts)
 	js, err := simplejson.NewJson(b)
+	if err != nil {
+		t.Error(err)
+	}
 
 	js_channel, err := js.Get("channel").String()
 	if err != nil {
@@ -123,7 +135,7 @@ func TestBuildJSON3(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if "Environment" != js_f_title1 {
+	if js_f_title1 != "Environment" {
 		t.Errorf("field[0]['title'] in JSON is unexpected: %s != %s", "Environment", js_f_title1)
 	}
 
@@ -131,7 +143,7 @@ func TestBuildJSON3(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if "production" != js_f_value1 {
+	if js_f_value1 != "production" {
 		t.Errorf("field[0]['value'] in JSON is unexpected: %s != %s", "production", js_f_value1)
 	}
 
