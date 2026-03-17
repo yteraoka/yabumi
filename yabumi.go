@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	flags "github.com/jessevdk/go-flags"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -117,12 +117,12 @@ func postMessage(url string, json []byte) error {
 		log.Println(err)
 		return err
 	}
+	defer resp.Body.Close() //nolint:errcheck
 	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 		log.Fatal(resp.Status)
 	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("Response status code: %d", resp.StatusCode)
+		return fmt.Errorf("response status code: %d", resp.StatusCode)
 	}
-	defer resp.Body.Close()
 
 	return nil
 }
@@ -186,7 +186,7 @@ func main() {
 	}
 
 	if opts.Message == "" {
-		bytes, err := ioutil.ReadAll(os.Stdin)
+		bytes, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			panic(err)
 		}
