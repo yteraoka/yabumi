@@ -21,6 +21,14 @@ var (
 	date    = "unknown"
 )
 
+const (
+	httpTimeout   = 3 * time.Second
+	retryCount    = 3
+	retryBaseWait = time.Second
+)
+
+var httpClient = &http.Client{Timeout: httpTimeout}
+
 type Options struct {
 	Channel         string   `short:"C" long:"channel" description:"slack channel to post"`
 	UseAttach       bool     `short:"a" long:"attachment" description:"use attachment"`
@@ -90,18 +98,12 @@ func parseField(s string) Field {
 }
 
 func parseBool(s string) bool {
-	var result bool
 	switch strings.ToLower(s) {
-	case "0":
-		result = false
-	case "false":
-		result = false
-	case "":
-		result = false
+	case "0", "false", "":
+		return false
 	default:
-		result = true
+		return true
 	}
-	return result
 }
 
 // permanentError はリトライすべきでないエラーを表す
@@ -143,8 +145,7 @@ func postMessage(url string, json []byte) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: time.Duration(3) * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -233,7 +234,7 @@ func main() {
 		if opts.Args.Url == "" {
 			log.Fatal("the required argument `Url` was not provided")
 		}
-		if err := sendWithRetry(opts.Args.Url, b, 3, time.Second); err != nil {
+		if err := sendWithRetry(opts.Args.Url, b, retryCount, retryBaseWait); err != nil {
 			log.Fatal("all attempts failed")
 		}
 	}
