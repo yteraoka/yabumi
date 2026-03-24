@@ -16,6 +16,16 @@ func TestParseField(t *testing.T) {
 	if v.Title != "name" || v.Value != "value" || v.Short != false {
 		t.Error("parse failed")
 	}
+
+	v = parseField("name|value")
+	if v.Title != "name" || v.Value != "value" || v.Short != false {
+		t.Error("parse failed for title|value format")
+	}
+
+	v = parseField("name")
+	if v.Title != "name" || v.Value != "" || v.Short != false {
+		t.Error("parse failed for title-only format")
+	}
 }
 
 func TestBuildJSON1(t *testing.T) {
