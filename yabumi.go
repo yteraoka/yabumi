@@ -78,7 +78,9 @@ func parseField(s string) Field {
 	p := strings.SplitN(s, "|", 3)
 	var f Field
 	f.Title = p[0]
-	f.Value = p[1]
+	if len(p) > 1 {
+		f.Value = p[1]
+	}
 	if len(p) > 2 {
 		f.Short = parseBool(p[2])
 	}
