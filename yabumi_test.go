@@ -1,10 +1,36 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
 	"github.com/bitly/go-simplejson"
 	flags "github.com/jessevdk/go-flags"
-	"testing"
 )
+
+func TestBuildJSONMarkdown(t *testing.T) {
+	// デフォルトは markdown 有効
+	b, err := buildJSON("hello", Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	js, _ := simplejson.NewJson(b)
+	if mrkdwn, _ := js.Get("mrkdwn").Bool(); !mrkdwn {
+		t.Error("expected mrkdwn to be true by default")
+	}
+
+	// DisableMarkdown を指定すると無効になる
+	b, err = buildJSON("hello", Options{DisableMarkdown: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	js, _ = simplejson.NewJson(b)
+	if mrkdwn, _ := js.Get("mrkdwn").Bool(); mrkdwn {
+		t.Error("expected mrkdwn to be false when DisableMarkdown is set")
+	}
+}
 
 func TestParseField(t *testing.T) {
 	v := parseField("name|value|true")
@@ -25,6 +51,73 @@ func TestParseField(t *testing.T) {
 	v = parseField("name")
 	if v.Title != "name" || v.Value != "" || v.Short != false {
 		t.Error("parse failed for title-only format")
+	}
+}
+
+func TestParseBool(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected bool
+	}{
+		{"1", true},
+		{"true", true},
+		{"TRUE", true},
+		{"yes", true},
+		{"0", false},
+		{"false", false},
+		{"FALSE", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := parseBool(c.input); got != c.expected {
+			t.Errorf("parseBool(%q) = %v, want %v", c.input, got, c.expected)
+		}
+	}
+}
+
+func TestPostMessageSuccess(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+}
+
+func TestPostMessageClientError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer ts.Close()
+
+	err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
+	if err == nil {
+		t.Error("expected error for 4xx response, got nil")
+	}
+	if !strings.Contains(err.Error(), "400") {
+		t.Errorf("expected error to contain status code, got: %v", err)
+	}
+}
+
+func TestPostMessageServerError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
+	if err == nil {
+		t.Error("expected error for 5xx response, got nil")
+	}
+}
+
+func TestPostMessageNetworkError(t *testing.T) {
+	err := postMessage("http://127.0.0.1:1", []byte(`{"text":"hello"}`))
+	if err == nil {
+		t.Error("expected error for unreachable server, got nil")
 	}
 }
 
