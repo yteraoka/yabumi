@@ -36,7 +36,10 @@ func TestBuildJSON1(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	b := buildJSON(text, opts)
+	b, err := buildJSON(text, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
 	js, err := simplejson.NewJson(b)
 	if err != nil {
 		t.Error(err)
@@ -62,7 +65,10 @@ func TestBuildJSON2(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	b := buildJSON(text, opts)
+	b, err := buildJSON(text, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
 	js, err := simplejson.NewJson(b)
 	if err != nil {
 		t.Error(err)
@@ -103,7 +109,10 @@ func TestBuildJSON3(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	b := buildJSON(text, opts)
+	b, err := buildJSON(text, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
 	js, err := simplejson.NewJson(b)
 	if err != nil {
 		t.Error(err)

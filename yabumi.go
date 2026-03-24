@@ -109,27 +109,23 @@ func postMessage(url string, json []byte) error {
 		bytes.NewBuffer(json),
 	)
 	if err != nil {
-		log.Println(err)
-		return err
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{Timeout: time.Duration(3) * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println(err)
-		return err
+		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close() //nolint:errcheck
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		log.Fatal(resp.Status)
-	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("response status code: %d", resp.StatusCode)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("unexpected response status: %s", resp.Status)
 	}
 
 	return nil
 }
 
-func buildJSON(text string, opts Options) []byte {
+func buildJSON(text string, opts Options) ([]byte, error) {
 	var m SlackMessage
 	m.Channel = opts.Channel
 
@@ -156,19 +152,14 @@ func buildJSON(text string, opts Options) []byte {
 		m.Text = text
 	}
 
-	if opts.DisableMarkdown {
-		m.Markdown = false
-	} else {
-		m.Markdown = true
-	}
+	m.Markdown = !opts.DisableMarkdown
 
-	// b, err := json.Marshal(m)
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
-	return b
+	return b, nil
 }
 
 func main() {
@@ -190,14 +181,17 @@ func main() {
 	if opts.Message == "" {
 		bytes, err := io.ReadAll(os.Stdin)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 		text = strings.TrimRight(string(bytes), "\n")
 	} else {
 		text = opts.Message
 	}
 
-	b := buildJSON(text, opts)
+	b, err := buildJSON(text, opts)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if opts.Debug {
 		fmt.Println(string(b))
@@ -205,11 +199,16 @@ func main() {
 		if opts.Args.Url == "" {
 			log.Fatal("the required argument `Url` was not provided")
 		}
+		var lastErr error
 		for i := 0; i < 3; i++ {
-			err := postMessage(opts.Args.Url, b)
-			if err == nil {
+			lastErr = postMessage(opts.Args.Url, b)
+			if lastErr == nil {
 				break
 			}
+			log.Printf("attempt %d failed: %v", i+1, lastErr)
+		}
+		if lastErr != nil {
+			log.Fatal("all attempts failed")
 		}
 	}
 }
