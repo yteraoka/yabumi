@@ -3,14 +3,16 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	flags "github.com/jessevdk/go-flags"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	flags "github.com/jessevdk/go-flags"
 )
 
 var (
@@ -102,6 +104,35 @@ func parseBool(s string) bool {
 	return result
 }
 
+// permanentError はリトライすべきでないエラーを表す
+type permanentError struct {
+	err error
+}
+
+func (e *permanentError) Error() string { return e.err.Error() }
+func (e *permanentError) Unwrap() error { return e.err }
+
+func sendWithRetry(url string, body []byte, retries int, baseWait time.Duration) error {
+	var lastErr error
+	for i := 0; i < retries; i++ {
+		if i > 0 {
+			wait := baseWait * (1 << (i - 1))
+			log.Printf("waiting %v before retry...", wait)
+			time.Sleep(wait)
+		}
+		lastErr = postMessage(url, body)
+		if lastErr == nil {
+			return nil
+		}
+		log.Printf("attempt %d failed: %v", i+1, lastErr)
+		var pe *permanentError
+		if errors.As(lastErr, &pe) {
+			return lastErr
+		}
+	}
+	return lastErr
+}
+
 func postMessage(url string, json []byte) error {
 	req, err := http.NewRequest(
 		"POST",
@@ -118,6 +149,9 @@ func postMessage(url string, json []byte) error {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close() //nolint:errcheck
+	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+		return &permanentError{err: fmt.Errorf("unexpected response status: %s", resp.Status)}
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("unexpected response status: %s", resp.Status)
 	}
@@ -199,15 +233,7 @@ func main() {
 		if opts.Args.Url == "" {
 			log.Fatal("the required argument `Url` was not provided")
 		}
-		var lastErr error
-		for i := 0; i < 3; i++ {
-			lastErr = postMessage(opts.Args.Url, b)
-			if lastErr == nil {
-				break
-			}
-			log.Printf("attempt %d failed: %v", i+1, lastErr)
-		}
-		if lastErr != nil {
+		if err := sendWithRetry(opts.Args.Url, b, 3, time.Second); err != nil {
 			log.Fatal("all attempts failed")
 		}
 	}

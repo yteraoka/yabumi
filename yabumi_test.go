@@ -121,6 +121,78 @@ func TestPostMessageNetworkError(t *testing.T) {
 	}
 }
 
+func TestSendWithRetrySuccess(t *testing.T) {
+	called := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	err := sendWithRetry(ts.URL, []byte(`{}`), 3, 0)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if called != 1 {
+		t.Errorf("expected 1 call, got %d", called)
+	}
+}
+
+func TestSendWithRetrySucceedsOnSecondAttempt(t *testing.T) {
+	called := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		if called < 2 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer ts.Close()
+
+	err := sendWithRetry(ts.URL, []byte(`{}`), 3, 0)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if called != 2 {
+		t.Errorf("expected 2 calls, got %d", called)
+	}
+}
+
+func TestSendWithRetryAllFail(t *testing.T) {
+	called := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	err := sendWithRetry(ts.URL, []byte(`{}`), 3, 0)
+	if err == nil {
+		t.Error("expected error when all attempts fail, got nil")
+	}
+	if called != 3 {
+		t.Errorf("expected 3 calls, got %d", called)
+	}
+}
+
+func TestSendWithRetryNoRetryOn4xx(t *testing.T) {
+	called := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer ts.Close()
+
+	err := sendWithRetry(ts.URL, []byte(`{}`), 3, 0)
+	if err == nil {
+		t.Error("expected error for 4xx response, got nil")
+	}
+	if called != 1 {
+		t.Errorf("expected 1 call (no retry for 4xx), got %d", called)
+	}
+}
+
 func TestBuildJSON1(t *testing.T) {
 	args := []string{}
 	text := "test"
