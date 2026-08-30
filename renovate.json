@@ -1,7 +1,20 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:base"
+    "config:recommended"
   ],
-  "minimumReleaseAge": "7 days"
+  "minimumReleaseAge": "7 days",
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "description": "minor 以下の更新は CI が通れば auto merge する",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "automerge": true
+    }
+  ]
 }
