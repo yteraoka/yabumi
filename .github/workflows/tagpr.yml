@@ -28,6 +28,6 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Run tagpr
-        uses: Songmu/tagpr@bca0c78861c25f5b38f97f11e73b67c9b01b3aef # v1.20.4
+        uses: Songmu/tagpr@2afc990a4a5a9a340665cc1a484c2102f7de332f # v1.21.0
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
