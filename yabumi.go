@@ -35,6 +35,17 @@ const (
 
 var httpClient = &http.Client{Timeout: httpTimeout}
 
+// webhookURLEnv は Webhook URL を指定する環境変数名
+const webhookURLEnv = "SLACK_WEBHOOK_URL"
+
+// webhookURL は引数で指定された Webhook URL を返す。未指定の場合は環境変数から取得する
+func webhookURL(opts Options) string {
+	if opts.Args.Url != "" {
+		return opts.Args.Url
+	}
+	return os.Getenv(webhookURLEnv)
+}
+
 // sleep はテストで差し替えられるようにする
 var sleep = time.Sleep
 
@@ -58,7 +69,7 @@ type Options struct {
 	Debug           bool     `short:"D" long:"debug" description:"enable debug mode. do not send request, show json only"`
 	Version         bool     `short:"v" long:"version" description:"show version"`
 	Args            struct {
-		Url string `description:"slack webhook endpoint url"`
+		Url string `description:"slack webhook endpoint url (default: $SLACK_WEBHOOK_URL)"`
 	} `positional-args:"yes"`
 }
 
@@ -308,10 +319,11 @@ func main() {
 	if opts.Debug {
 		fmt.Println(string(b))
 	} else {
-		if opts.Args.Url == "" {
-			log.Fatal("the required argument `Url` was not provided")
+		endpoint := webhookURL(opts)
+		if endpoint == "" {
+			log.Fatalf("webhook url is not specified: pass it as an argument or set %s", webhookURLEnv)
 		}
-		if err := sendWithRetry(opts.Args.Url, b, retryCount, retryBaseWait); err != nil {
+		if err := sendWithRetry(endpoint, b, retryCount, retryBaseWait); err != nil {
 			log.Fatalf("failed to post message: %v", err)
 		}
 	}

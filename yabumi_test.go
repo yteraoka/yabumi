@@ -513,3 +513,27 @@ func TestPostMessageErrorContainsResponseBody(t *testing.T) {
 		})
 	}
 }
+
+func TestWebhookURL(t *testing.T) {
+	cases := []struct {
+		name     string
+		arg      string
+		env      string
+		expected string
+	}{
+		{"argument only", "https://example.com/arg", "", "https://example.com/arg"},
+		{"env only", "", "https://example.com/env", "https://example.com/env"},
+		{"argument takes precedence", "https://example.com/arg", "https://example.com/env", "https://example.com/arg"},
+		{"neither", "", "", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(webhookURLEnv, c.env)
+			var opts Options
+			opts.Args.Url = c.arg
+			if got := webhookURL(opts); got != c.expected {
+				t.Errorf("webhookURL() = %q, want %q", got, c.expected)
+			}
+		})
+	}
+}
