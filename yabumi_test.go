@@ -391,3 +391,24 @@ func TestBuildJSONAttachmentOptions(t *testing.T) {
 		}
 	}
 }
+
+func TestPostMessageErrorDoesNotContainURL(t *testing.T) {
+	const secret = "T000/B000/secret-token"
+	cases := []struct {
+		name string
+		url  string
+	}{
+		{"network error", "http://127.0.0.1:1/services/" + secret},
+		{"invalid url", "http://[::1/services/" + secret},
+	}
+	for _, c := range cases {
+		err := postMessage(c.url, []byte(`{"text":"hello"}`))
+		if err == nil {
+			t.Errorf("%s: expected error, got nil", c.name)
+			continue
+		}
+		if strings.Contains(err.Error(), secret) {
+			t.Errorf("%s: error message contains webhook url: %v", c.name, err)
+		}
+	}
+}

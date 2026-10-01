@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -114,7 +115,7 @@ type permanentError struct {
 func (e *permanentError) Error() string { return e.err.Error() }
 func (e *permanentError) Unwrap() error { return e.err }
 
-func sendWithRetry(url string, body []byte, retries int, baseWait time.Duration) error {
+func sendWithRetry(endpoint string, body []byte, retries int, baseWait time.Duration) error {
 	var lastErr error
 	for i := range retries {
 		if i > 0 {
@@ -122,7 +123,7 @@ func sendWithRetry(url string, body []byte, retries int, baseWait time.Duration)
 			log.Printf("waiting %v before retry...", wait)
 			time.Sleep(wait)
 		}
-		lastErr = postMessage(url, body)
+		lastErr = postMessage(endpoint, body)
 		if lastErr == nil {
 			return nil
 		}
@@ -135,19 +136,28 @@ func sendWithRetry(url string, body []byte, retries int, baseWait time.Duration)
 	return lastErr
 }
 
-func postMessage(url string, json []byte) error {
+// redactURL は err に含まれる Webhook URL (秘密情報) を伏せる
+func redactURL(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		ue.URL = "<redacted>"
+	}
+	return err
+}
+
+func postMessage(endpoint string, json []byte) error {
 	req, err := http.NewRequest(
 		"POST",
-		url,
+		endpoint,
 		bytes.NewBuffer(json),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create request: %w", redactURL(err))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
+		return fmt.Errorf("failed to send request: %w", redactURL(err))
 	}
 	defer resp.Body.Close() //nolint:errcheck
 	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
