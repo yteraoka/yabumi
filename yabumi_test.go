@@ -3,61 +3,151 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/bitly/go-simplejson"
 	flags "github.com/jessevdk/go-flags"
 )
 
 var discardLogger = log.New(io.Discard, "", 0)
 
-func TestBuildJSONMarkdown(t *testing.T) {
-	// デフォルトは markdown 有効
-	b, err := buildJSON("hello", Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	js, _ := simplejson.NewJson(b)
-	if mrkdwn, _ := js.Get("mrkdwn").Bool(); !mrkdwn {
-		t.Error("expected mrkdwn to be true by default")
-	}
+// closedServerURL は接続が即座に拒否される URL を返す
+func closedServerURL(t *testing.T) string {
+	t.Helper()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	u := ts.URL
+	ts.Close()
+	return u
+}
 
-	// DisableMarkdown を指定すると無効になる
-	b, err = buildJSON("hello", Options{DisableMarkdown: true})
-	if err != nil {
-		t.Fatal(err)
+func TestBuildJSON(t *testing.T) {
+	cases := []struct {
+		name     string
+		args     []string
+		text     string
+		expected SlackMessage
+	}{
+		{
+			name:     "simple text",
+			text:     "hello",
+			expected: SlackMessage{Text: "hello", Markdown: true},
+		},
+		{
+			name:     "channel",
+			args:     []string{"--channel", "#mychannel"},
+			text:     "hello",
+			expected: SlackMessage{Text: "hello", Channel: "#mychannel", Markdown: true},
+		},
+		{
+			name:     "disable markdown",
+			args:     []string{"--disable-markdown"},
+			text:     "hello",
+			expected: SlackMessage{Text: "hello", Markdown: false},
+		},
+		{
+			name: "attachment with title",
+			args: []string{"--attachment", "--title", "test title"},
+			text: "hello",
+			expected: SlackMessage{
+				Markdown: true,
+				Attachments: []Attachment{
+					{Fallback: "hello", Text: "hello", Title: "test title"},
+				},
+			},
+		},
+		{
+			name: "attachment with all options",
+			args: []string{
+				"--channel", "#mychannel",
+				"--attachment",
+				"--title", "title",
+				"--title-link", "https://example.com/title",
+				"--color", "danger",
+				"--pretext", "pretext",
+				"--author-name", "author",
+				"--author-link", "https://example.com/author",
+				"--author-icon", "https://example.com/author.png",
+				"--image-url", "https://example.com/image.png",
+				"--thumb-url", "https://example.com/thumb.png",
+				"--footer", "footer",
+				"--footer-icon", "https://example.com/footer.png",
+				"--field", "Environment|production|true",
+				"--field", "Service|test|0",
+				"--field", "Note",
+			},
+			text: "hello",
+			expected: SlackMessage{
+				Channel:  "#mychannel",
+				Markdown: true,
+				Attachments: []Attachment{
+					{
+						Fallback:   "hello",
+						Text:       "hello",
+						Title:      "title",
+						TitleLink:  "https://example.com/title",
+						Color:      "danger",
+						Pretext:    "pretext",
+						AuthorName: "author",
+						AuthorLink: "https://example.com/author",
+						AuthorIcon: "https://example.com/author.png",
+						ImageUrl:   "https://example.com/image.png",
+						ThumbUrl:   "https://example.com/thumb.png",
+						Footer:     "footer",
+						FooterIcon: "https://example.com/footer.png",
+						Fields: []Field{
+							{Title: "Environment", Value: "production", Short: true},
+							{Title: "Service", Value: "test", Short: false},
+							{Title: "Note"},
+						},
+					},
+				},
+			},
+		},
 	}
-	js, _ = simplejson.NewJson(b)
-	if mrkdwn, _ := js.Get("mrkdwn").Bool(); mrkdwn {
-		t.Error("expected mrkdwn to be false when DisableMarkdown is set")
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var opts Options
+			if _, err := flags.ParseArgs(&opts, c.args); err != nil {
+				t.Fatal(err)
+			}
+			b, err := buildJSON(c.text, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got SlackMessage
+			if err := json.Unmarshal(b, &got); err != nil {
+				t.Fatalf("failed to parse JSON: %v (%s)", err, b)
+			}
+			if !reflect.DeepEqual(got, c.expected) {
+				t.Errorf("unexpected message:\n got: %+v\nwant: %+v", got, c.expected)
+			}
+		})
 	}
 }
 
 func TestParseField(t *testing.T) {
-	v := parseField("name|value|true")
-	if v.Title != "name" || v.Value != "value" || v.Short != true {
-		t.Error("parse failed")
+	cases := []struct {
+		input    string
+		expected Field
+	}{
+		{"name|value|true", Field{Title: "name", Value: "value", Short: true}},
+		{"name|value|0", Field{Title: "name", Value: "value", Short: false}},
+		{"name|value", Field{Title: "name", Value: "value"}},
+		{"name", Field{Title: "name"}},
+		{"name|a|true|b", Field{Title: "name", Value: "a", Short: true}},
 	}
-
-	v = parseField("name|value|0")
-	if v.Title != "name" || v.Value != "value" || v.Short != false {
-		t.Error("parse failed")
-	}
-
-	v = parseField("name|value")
-	if v.Title != "name" || v.Value != "value" || v.Short != false {
-		t.Error("parse failed for title|value format")
-	}
-
-	v = parseField("name")
-	if v.Title != "name" || v.Value != "" || v.Short != false {
-		t.Error("parse failed for title-only format")
+	for _, c := range cases {
+		if got := parseField(c.input); got != c.expected {
+			t.Errorf("parseField(%q) = %+v, want %+v", c.input, got, c.expected)
+		}
 	}
 }
 
@@ -82,320 +172,117 @@ func TestParseBool(t *testing.T) {
 	}
 }
 
-func TestPostMessageSuccess(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts.Close()
-
-	err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
-	if err != nil {
-		t.Errorf("expected no error, got: %v", err)
+func TestPostMessageStatus(t *testing.T) {
+	cases := []struct {
+		name       string
+		status     int
+		wantErr    bool
+		permanent  bool // permanentError (リトライしない) であるべきか
+		retryAfter bool // retryAfterError であるべきか
+	}{
+		{name: "200 OK", status: http.StatusOK},
+		{name: "204 No Content", status: http.StatusNoContent},
+		{name: "400 Bad Request", status: http.StatusBadRequest, wantErr: true, permanent: true},
+		{name: "404 Not Found", status: http.StatusNotFound, wantErr: true, permanent: true},
+		{name: "429 Too Many Requests", status: http.StatusTooManyRequests, wantErr: true, retryAfter: true},
+		{name: "500 Internal Server Error", status: http.StatusInternalServerError, wantErr: true},
+		{name: "503 Service Unavailable", status: http.StatusServiceUnavailable, wantErr: true},
 	}
-}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var gotContentType string
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotContentType = r.Header.Get("Content-Type")
+				w.WriteHeader(c.status)
+			}))
+			defer ts.Close()
 
-func TestPostMessageClientError(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-	}))
-	defer ts.Close()
-
-	err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
-	if err == nil {
-		t.Error("expected error for 4xx response, got nil")
-	}
-	if !strings.Contains(err.Error(), "400") {
-		t.Errorf("expected error to contain status code, got: %v", err)
-	}
-}
-
-func TestPostMessageServerError(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer ts.Close()
-
-	err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
-	if err == nil {
-		t.Error("expected error for 5xx response, got nil")
+			err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
+			if gotContentType != "application/json" {
+				t.Errorf("Content-Type = %q, want application/json", gotContentType)
+			}
+			if !c.wantErr {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), strconv.Itoa(c.status)) {
+				t.Errorf("expected error to contain status code, got: %v", err)
+			}
+			var pe *permanentError
+			if got := errors.As(err, &pe); got != c.permanent {
+				t.Errorf("permanentError = %v, want %v", got, c.permanent)
+			}
+			var ra *retryAfterError
+			if got := errors.As(err, &ra); got != c.retryAfter {
+				t.Errorf("retryAfterError = %v, want %v", got, c.retryAfter)
+			}
+		})
 	}
 }
 
 func TestPostMessageNetworkError(t *testing.T) {
-	err := postMessage("http://127.0.0.1:1", []byte(`{"text":"hello"}`))
+	err := postMessage(closedServerURL(t), []byte(`{"text":"hello"}`))
 	if err == nil {
 		t.Error("expected error for unreachable server, got nil")
 	}
 }
 
-func TestSendWithRetrySuccess(t *testing.T) {
-	called := 0
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called++
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts.Close()
-
-	err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
-	if err != nil {
-		t.Errorf("expected no error, got: %v", err)
+func TestSendWithRetry(t *testing.T) {
+	cases := []struct {
+		name          string
+		statuses      []int // 各試行で返すステータス (足りない分は最後の値)
+		wantErr       bool
+		expectedCalls int
+	}{
+		{name: "success", statuses: []int{200}, expectedCalls: 1},
+		{name: "succeeds on second attempt", statuses: []int{500, 200}, expectedCalls: 2},
+		{name: "succeeds on last attempt", statuses: []int{500, 503, 200}, expectedCalls: 3},
+		{name: "all fail", statuses: []int{500}, wantErr: true, expectedCalls: 3},
+		{name: "no retry on 4xx", statuses: []int{400}, wantErr: true, expectedCalls: 1},
+		{name: "4xx after 5xx", statuses: []int{500, 400}, wantErr: true, expectedCalls: 2},
 	}
-	if called != 1 {
-		t.Errorf("expected 1 call, got %d", called)
-	}
-}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			called := 0
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(c.statuses[min(called, len(c.statuses)-1)])
+				called++
+			}))
+			defer ts.Close()
 
-func TestSendWithRetrySucceedsOnSecondAttempt(t *testing.T) {
-	called := 0
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called++
-		if called < 2 {
-			w.WriteHeader(http.StatusInternalServerError)
-		} else {
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
-	defer ts.Close()
-
-	err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
-	if err != nil {
-		t.Errorf("expected no error, got: %v", err)
-	}
-	if called != 2 {
-		t.Errorf("expected 2 calls, got %d", called)
+			err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
+			if (err != nil) != c.wantErr {
+				t.Errorf("error = %v, wantErr %v", err, c.wantErr)
+			}
+			if called != c.expectedCalls {
+				t.Errorf("expected %d calls, got %d", c.expectedCalls, called)
+			}
+		})
 	}
 }
 
-func TestSendWithRetryAllFail(t *testing.T) {
-	called := 0
+func TestSendWithRetryBackoff(t *testing.T) {
+	var waits []time.Duration
+	orig := sleep
+	sleep = func(d time.Duration) { waits = append(waits, d) }
+	defer func() { sleep = orig }()
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called++
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer ts.Close()
 
-	err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
-	if err == nil {
+	if err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 4, time.Second); err == nil {
 		t.Error("expected error when all attempts fail, got nil")
 	}
-	if called != 3 {
-		t.Errorf("expected 3 calls, got %d", called)
-	}
-}
-
-func TestSendWithRetryNoRetryOn4xx(t *testing.T) {
-	called := 0
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called++
-		w.WriteHeader(http.StatusBadRequest)
-	}))
-	defer ts.Close()
-
-	err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
-	if err == nil {
-		t.Error("expected error for 4xx response, got nil")
-	}
-	if called != 1 {
-		t.Errorf("expected 1 call (no retry for 4xx), got %d", called)
-	}
-}
-
-func TestBuildJSON1(t *testing.T) {
-	args := []string{}
-	text := "test"
-	var opts Options
-	_, err := flags.ParseArgs(&opts, args)
-	if err != nil {
-		t.Error(err)
-	}
-	b, err := buildJSON(text, opts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	js, err := simplejson.NewJson(b)
-	if err != nil {
-		t.Error(err)
-	}
-	js_text, err := js.Get("text").String()
-	if err != nil {
-		t.Error(err)
-	}
-	if text != js_text {
-		t.Errorf("text in JSON is unexpected: %s != %s", text, js_text)
-	}
-}
-
-func TestBuildJSON2(t *testing.T) {
-	text := "test"
-	title := "test title"
-	args := []string{
-		"--attachment",
-		"--title", title,
-	}
-	var opts Options
-	_, err := flags.ParseArgs(&opts, args)
-	if err != nil {
-		t.Error(err)
-	}
-	b, err := buildJSON(text, opts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	js, err := simplejson.NewJson(b)
-	if err != nil {
-		t.Error(err)
-	}
-
-	js_text, err := js.Get("attachments").GetIndex(0).Get("text").String()
-	if err != nil {
-		t.Error(err)
-	}
-	if text != js_text {
-		t.Errorf("text in JSON is unexpected: %s != %s", text, js_text)
-	}
-
-	js_title, err := js.Get("attachments").GetIndex(0).Get("title").String()
-	if err != nil {
-		t.Error(err)
-	}
-	if title != js_title {
-		t.Errorf("title in JSON is unexpected: %s != %s", title, js_title)
-	}
-}
-
-func TestBuildJSON3(t *testing.T) {
-	channel := "#mychannel"
-	text := "test"
-	title := "test title"
-	color := "daner"
-	args := []string{
-		"--channel", channel,
-		"--attachment",
-		"--title", title,
-		"--color", color,
-		"--field", "Environment|production|true",
-		"--field", "Service|test|1",
-	}
-	var opts Options
-	_, err := flags.ParseArgs(&opts, args)
-	if err != nil {
-		t.Error(err)
-	}
-	b, err := buildJSON(text, opts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	js, err := simplejson.NewJson(b)
-	if err != nil {
-		t.Error(err)
-	}
-
-	js_channel, err := js.Get("channel").String()
-	if err != nil {
-		t.Error(err)
-	}
-	if channel != js_channel {
-		t.Errorf("channel in JSON is unexpected: %s != %s", channel, js_channel)
-	}
-
-	js_text, err := js.Get("attachments").GetIndex(0).Get("text").String()
-	if err != nil {
-		t.Error(err)
-	}
-	if text != js_text {
-		t.Errorf("text in JSON is unexpected: %s != %s", text, js_text)
-	}
-
-	js_title, err := js.Get("attachments").GetIndex(0).Get("title").String()
-	if err != nil {
-		t.Error(err)
-	}
-	if title != js_title {
-		t.Errorf("title in JSON is unexpected: %s != %s", title, js_title)
-	}
-
-	js_color, err := js.Get("attachments").GetIndex(0).Get("color").String()
-	if err != nil {
-		t.Error(err)
-	}
-	if color != js_color {
-		t.Errorf("color in JSON is unexpected: %s != %s", color, js_color)
-	}
-
-	js_f_title1, err := js.Get("attachments").GetIndex(0).Get("fields").GetIndex(0).Get("title").String()
-	if err != nil {
-		t.Error(err)
-	}
-	if js_f_title1 != "Environment" {
-		t.Errorf("field[0]['title'] in JSON is unexpected: %s != %s", "Environment", js_f_title1)
-	}
-
-	js_f_value1, err := js.Get("attachments").GetIndex(0).Get("fields").GetIndex(0).Get("value").String()
-	if err != nil {
-		t.Error(err)
-	}
-	if js_f_value1 != "production" {
-		t.Errorf("field[0]['value'] in JSON is unexpected: %s != %s", "production", js_f_value1)
-	}
-
-	js_f_short1, err := js.Get("attachments").GetIndex(0).Get("fields").GetIndex(0).Get("short").Bool()
-	if err != nil {
-		t.Error(err)
-	}
-	if true != js_f_short1 {
-		t.Errorf("field[0]['short'] in JSON is unexpected: %s != %v", "true", js_f_short1)
-	}
-}
-
-func TestBuildJSONAttachmentOptions(t *testing.T) {
-	args := []string{
-		"--attachment",
-		"--title", "title",
-		"--title-link", "https://example.com/title",
-		"--pretext", "pretext",
-		"--author-name", "author",
-		"--author-link", "https://example.com/author",
-		"--author-icon", "https://example.com/author.png",
-		"--image-url", "https://example.com/image.png",
-		"--thumb-url", "https://example.com/thumb.png",
-		"--footer", "footer",
-		"--footer-icon", "https://example.com/footer.png",
-	}
-	var opts Options
-	if _, err := flags.ParseArgs(&opts, args); err != nil {
-		t.Fatal(err)
-	}
-	b, err := buildJSON("test", opts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	js, err := simplejson.NewJson(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := map[string]string{
-		"title":       "title",
-		"title_link":  "https://example.com/title",
-		"pretext":     "pretext",
-		"author_name": "author",
-		"author_link": "https://example.com/author",
-		"author_icon": "https://example.com/author.png",
-		"image_url":   "https://example.com/image.png",
-		"thumb_url":   "https://example.com/thumb.png",
-		"footer":      "footer",
-		"footer_icon": "https://example.com/footer.png",
-	}
-	a := js.Get("attachments").GetIndex(0)
-	for key, want := range expected {
-		got, err := a.Get(key).String()
-		if err != nil {
-			t.Errorf("%s not found in attachment: %v", key, err)
-			continue
-		}
-		if got != want {
-			t.Errorf("%s in JSON is unexpected: %s != %s", key, got, want)
-		}
+	expected := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
+	if !reflect.DeepEqual(waits, expected) {
+		t.Errorf("waits = %v, want %v", waits, expected)
 	}
 }
 
@@ -405,7 +292,7 @@ func TestPostMessageErrorDoesNotContainURL(t *testing.T) {
 		name string
 		url  string
 	}{
-		{"network error", "http://127.0.0.1:1/services/" + secret},
+		{"network error", closedServerURL(t) + "/services/" + secret},
 		{"invalid url", "http://[::1/services/" + secret},
 	}
 	for _, c := range cases {
