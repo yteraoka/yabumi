@@ -116,7 +116,7 @@ func (e *permanentError) Unwrap() error { return e.err }
 
 func sendWithRetry(url string, body []byte, retries int, baseWait time.Duration) error {
 	var lastErr error
-	for i := 0; i < retries; i++ {
+	for i := range retries {
 		if i > 0 {
 			wait := baseWait * (1 << (i - 1))
 			log.Printf("waiting %v before retry...", wait)
