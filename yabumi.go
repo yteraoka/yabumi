@@ -160,7 +160,7 @@ func parseRetryAfter(v string, now time.Time) time.Duration {
 	return 0
 }
 
-func sendWithRetry(endpoint string, body []byte, retries int, baseWait time.Duration) error {
+func sendWithRetry(logger *log.Logger, endpoint string, body []byte, retries int, baseWait time.Duration) error {
 	var lastErr error
 	for i := range retries {
 		if i > 0 {
@@ -169,14 +169,14 @@ func sendWithRetry(endpoint string, body []byte, retries int, baseWait time.Dura
 			if errors.As(lastErr, &ra) {
 				wait = max(wait, min(ra.after, maxRetryAfter))
 			}
-			log.Printf("waiting %v before retry...", wait)
+			logger.Printf("waiting %v before retry...", wait)
 			sleep(wait)
 		}
 		lastErr = postMessage(endpoint, body)
 		if lastErr == nil {
 			return nil
 		}
-		log.Printf("attempt %d failed: %v", i+1, lastErr)
+		logger.Printf("attempt %d failed: %v", i+1, lastErr)
 		var pe *permanentError
 		if errors.As(lastErr, &pe) {
 			return lastErr
@@ -283,48 +283,63 @@ func buildJSON(text string, opts Options) ([]byte, error) {
 }
 
 func main() {
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+}
+
+// run は CLI 本体。テストできるよう入出力を引数で受け取り、終了コードを返す
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	logger := log.New(stderr, "", log.LstdFlags)
+
 	var opts Options
-	var text string
-	_, err := flags.Parse(&opts)
-	if err != nil {
+	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
+	if _, err := parser.ParseArgs(args); err != nil {
 		if flags.WroteHelp(err) {
-			os.Exit(0)
+			fmt.Fprintln(stdout, err) //nolint:errcheck
+			return 0
 		}
-		os.Exit(1)
+		fmt.Fprintln(stderr, err) //nolint:errcheck
+		return 1
 	}
 
 	if opts.Version {
-		fmt.Println("yabumi (Post message to slack)")
-		fmt.Println("version:", version)
-		fmt.Println("commit:", commit)
-		fmt.Println("build date:", date)
-		os.Exit(0)
+		fmt.Fprintln(stdout, "yabumi (Post message to slack)") //nolint:errcheck
+		fmt.Fprintln(stdout, "version:", version)              //nolint:errcheck
+		fmt.Fprintln(stdout, "commit:", commit)                //nolint:errcheck
+		fmt.Fprintln(stdout, "build date:", date)              //nolint:errcheck
+		return 0
 	}
 
+	var text string
 	if opts.Message == "" {
-		bytes, err := io.ReadAll(os.Stdin)
+		b, err := io.ReadAll(stdin)
 		if err != nil {
-			log.Fatal(err)
+			logger.Print(err)
+			return 1
 		}
-		text = strings.TrimRight(string(bytes), "\n")
+		text = strings.TrimRight(string(b), "\n")
 	} else {
 		text = opts.Message
 	}
 
 	b, err := buildJSON(text, opts)
 	if err != nil {
-		log.Fatal(err)
+		logger.Print(err)
+		return 1
 	}
 
 	if opts.Debug {
-		fmt.Println(string(b))
-	} else {
-		endpoint := webhookURL(opts)
-		if endpoint == "" {
-			log.Fatalf("webhook url is not specified: pass it as an argument or set %s", webhookURLEnv)
-		}
-		if err := sendWithRetry(endpoint, b, retryCount, retryBaseWait); err != nil {
-			log.Fatalf("failed to post message: %v", err)
-		}
+		fmt.Fprintln(stdout, string(b)) //nolint:errcheck
+		return 0
 	}
+
+	endpoint := webhookURL(opts)
+	if endpoint == "" {
+		logger.Printf("webhook url is not specified: pass it as an argument or set %s", webhookURLEnv)
+		return 1
+	}
+	if err := sendWithRetry(logger, endpoint, b, retryCount, retryBaseWait); err != nil {
+		logger.Printf("failed to post message: %v", err)
+		return 1
+	}
+	return 0
 }

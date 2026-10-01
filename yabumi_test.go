@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +14,8 @@ import (
 	"github.com/bitly/go-simplejson"
 	flags "github.com/jessevdk/go-flags"
 )
+
+var discardLogger = log.New(io.Discard, "", 0)
 
 func TestBuildJSONMarkdown(t *testing.T) {
 	// デフォルトは markdown 有効
@@ -130,7 +136,7 @@ func TestSendWithRetrySuccess(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := sendWithRetry(ts.URL, []byte(`{}`), 3, 0)
+	err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
 	if err != nil {
 		t.Errorf("expected no error, got: %v", err)
 	}
@@ -151,7 +157,7 @@ func TestSendWithRetrySucceedsOnSecondAttempt(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := sendWithRetry(ts.URL, []byte(`{}`), 3, 0)
+	err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
 	if err != nil {
 		t.Errorf("expected no error, got: %v", err)
 	}
@@ -168,7 +174,7 @@ func TestSendWithRetryAllFail(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := sendWithRetry(ts.URL, []byte(`{}`), 3, 0)
+	err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
 	if err == nil {
 		t.Error("expected error when all attempts fail, got nil")
 	}
@@ -185,7 +191,7 @@ func TestSendWithRetryNoRetryOn4xx(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := sendWithRetry(ts.URL, []byte(`{}`), 3, 0)
+	err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
 	if err == nil {
 		t.Error("expected error for 4xx response, got nil")
 	}
@@ -467,7 +473,7 @@ func TestSendWithRetryOn429(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			if err := sendWithRetry(ts.URL, []byte(`{}`), 3, time.Second); err != nil {
+			if err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, time.Second); err != nil {
 				t.Errorf("expected no error, got: %v", err)
 			}
 			if called != 2 {
@@ -533,6 +539,68 @@ func TestWebhookURL(t *testing.T) {
 			opts.Args.Url = c.arg
 			if got := webhookURL(opts); got != c.expected {
 				t.Errorf("webhookURL() = %q, want %q", got, c.expected)
+			}
+		})
+	}
+}
+
+func TestRun(t *testing.T) {
+	var received []byte
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	failTS := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("invalid_payload"))
+	}))
+	defer failTS.Close()
+
+	cases := []struct {
+		name         string
+		args         []string
+		stdin        string
+		env          string
+		expectedCode int
+		stdout       string // stdout に含まれるべき文字列
+		stderr       string // stderr に含まれるべき文字列
+		sentText     string // 送信された JSON の text (空なら送信を検証しない)
+	}{
+		{name: "help", args: []string{"--help"}, expectedCode: 0, stdout: "Usage:"},
+		{name: "unknown flag", args: []string{"--bogus"}, expectedCode: 1, stderr: "unknown flag `bogus'"},
+		{name: "version", args: []string{"--version"}, expectedCode: 0, stdout: "version: dev"},
+		{name: "debug reads stdin", args: []string{"-D"}, stdin: "hello\n", expectedCode: 0, stdout: `"text": "hello"`},
+		{name: "debug with message", args: []string{"-D", "-m", "from flag"}, stdin: "from stdin", expectedCode: 0, stdout: `"text": "from flag"`},
+		{name: "no url", args: []string{"-m", "hi"}, expectedCode: 1, stderr: "set SLACK_WEBHOOK_URL"},
+		{name: "send via argument", args: []string{"-m", "hi", ts.URL}, expectedCode: 0, sentText: "hi"},
+		{name: "send via env", args: []string{}, stdin: "from env\n", env: ts.URL, expectedCode: 0, sentText: "from env"},
+		{name: "send fails", args: []string{"-m", "hi", failTS.URL}, expectedCode: 1, stderr: "failed to post message: unexpected response status: 400 Bad Request: invalid_payload"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(webhookURLEnv, c.env)
+			received = nil
+			var stdout, stderr bytes.Buffer
+
+			code := run(c.args, strings.NewReader(c.stdin), &stdout, &stderr)
+			if code != c.expectedCode {
+				t.Errorf("exit code = %d, want %d (stderr: %s)", code, c.expectedCode, stderr.String())
+			}
+			if !strings.Contains(stdout.String(), c.stdout) {
+				t.Errorf("stdout does not contain %q: %s", c.stdout, stdout.String())
+			}
+			if !strings.Contains(stderr.String(), c.stderr) {
+				t.Errorf("stderr does not contain %q: %s", c.stderr, stderr.String())
+			}
+			if c.sentText != "" {
+				var m SlackMessage
+				if err := json.Unmarshal(received, &m); err != nil {
+					t.Fatalf("failed to parse sent JSON: %v (%s)", err, received)
+				}
+				if m.Text != c.sentText {
+					t.Errorf("sent text = %q, want %q", m.Text, c.sentText)
+				}
 			}
 		})
 	}
