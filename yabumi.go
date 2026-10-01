@@ -204,6 +204,9 @@ func main() {
 	var text string
 	_, err := flags.Parse(&opts)
 	if err != nil {
+		if flags.WroteHelp(err) {
+			os.Exit(0)
+		}
 		os.Exit(1)
 	}
 
