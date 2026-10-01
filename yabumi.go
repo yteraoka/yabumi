@@ -29,6 +29,8 @@ const (
 	retryBaseWait = time.Second
 	// Retry-After で指定された待ち時間の上限
 	maxRetryAfter = 30 * time.Second
+	// エラーメッセージに含めるレスポンスボディの最大バイト数
+	maxErrorBodySize = 512
 )
 
 var httpClient = &http.Client{Timeout: httpTimeout}
@@ -181,6 +183,24 @@ func redactURL(err error) error {
 	return err
 }
 
+// statusError はレスポンスステータスとボディ (Slack のエラー理由) を含むエラーを返す
+func statusError(resp *http.Response) error {
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodySize+1))
+	truncated := len(b) > maxErrorBodySize
+	if truncated {
+		b = b[:maxErrorBodySize]
+	}
+	// HTML 等の複数行のボディでもログが 1 行に収まるよう空白をまとめる
+	body := strings.Join(strings.Fields(strings.ToValidUTF8(string(b), "")), " ")
+	if body == "" {
+		return fmt.Errorf("unexpected response status: %s", resp.Status)
+	}
+	if truncated {
+		body += "..."
+	}
+	return fmt.Errorf("unexpected response status: %s: %s", resp.Status, body)
+}
+
 func postMessage(endpoint string, json []byte) error {
 	req, err := http.NewRequest(
 		"POST",
@@ -198,15 +218,15 @@ func postMessage(endpoint string, json []byte) error {
 	defer resp.Body.Close() //nolint:errcheck
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return &retryAfterError{
-			err:   fmt.Errorf("unexpected response status: %s", resp.Status),
+			err:   statusError(resp),
 			after: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()),
 		}
 	}
 	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		return &permanentError{err: fmt.Errorf("unexpected response status: %s", resp.Status)}
+		return &permanentError{err: statusError(resp)}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected response status: %s", resp.Status)
+		return statusError(resp)
 	}
 
 	return nil
