@@ -1,6 +1,6 @@
 # Changelog
 
-## [v0.5.1](https://github.com/yteraoka/yabumi/compare/v0.5.0...v0.5.1) - 2026-09-30
+## [v0.5.1](https://github.com/yteraoka/yabumi/compare/v0.5.0...v0.5.1) - 2026-10-01
 
 - feat: renovate で minimumReleaseAge を 7 days に設定 by @yteraoka in https://github.com/yteraoka/yabumi/pull/48
 - Update goreleaser/goreleaser-action action to v7.1.0 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/49
@@ -28,6 +28,7 @@
 - Update Songmu/tagpr action to v1.20.3 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/72
 - Update Songmu/tagpr action to v1.20.4 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/73
 - Update Songmu/tagpr action to v1.21.0 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/74
+- go fix by @yteraoka in https://github.com/yteraoka/yabumi/pull/75
 
 ## [v0.5.0](https://github.com/yteraoka/yabumi/compare/v0.4.0...v0.5.0) - 2026-04-11
 
