@@ -35,7 +35,8 @@ Help Options:
   -h, --help              Show this help message
 
 Arguments:
-  Url:                    slack webhook endpoint url
+  Url:                    slack webhook endpoint url (default:
+                          $SLACK_WEBHOOK_URL)
 ```
 
 Simple message
@@ -46,6 +47,15 @@ $ fortune | ./yabumi https://hooks.slack.com/services/xxx/yyy/zzzz
 ```
 
 ![capture](images/slack-capture2.png)
+
+The webhook URL can also be given by the `SLACK_WEBHOOK_URL` environment variable.
+The argument takes precedence if both are given. Using the environment variable is recommended
+so that the URL does not remain in your shell history or the process list.
+
+```bash
+$ export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/xxx/yyy/zzzz
+$ fortune | ./yabumi
+```
 
 Attachment
 ----------
