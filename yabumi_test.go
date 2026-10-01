@@ -22,7 +22,7 @@ var discardLogger = log.New(io.Discard, "", 0)
 // closedServerURL は接続が即座に拒否される URL を返す
 func closedServerURL(t *testing.T) string {
 	t.Helper()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	ts := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	u := ts.URL
 	ts.Close()
 	return u
@@ -98,8 +98,8 @@ func TestBuildJSON(t *testing.T) {
 						AuthorName: "author",
 						AuthorLink: "https://example.com/author",
 						AuthorIcon: "https://example.com/author.png",
-						ImageUrl:   "https://example.com/image.png",
-						ThumbUrl:   "https://example.com/thumb.png",
+						ImageURL:   "https://example.com/image.png",
+						ThumbURL:   "https://example.com/thumb.png",
 						Footer:     "footer",
 						FooterIcon: "https://example.com/footer.png",
 						Fields: []Field{
@@ -249,7 +249,7 @@ func TestSendWithRetry(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			called := 0
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(c.statuses[min(called, len(c.statuses)-1)])
 				called++
 			}))
@@ -272,7 +272,7 @@ func TestSendWithRetryBackoff(t *testing.T) {
 	sleep = func(d time.Duration) { waits = append(waits, d) }
 	defer func() { sleep = orig }()
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer ts.Close()
@@ -347,7 +347,7 @@ func TestSendWithRetryOn429(t *testing.T) {
 			defer func() { sleep = orig }()
 
 			called := 0
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				called++
 				if called < 2 {
 					if c.retryAfter != "" {
@@ -390,7 +390,7 @@ func TestPostMessageErrorContainsResponseBody(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(c.status)
 				_, _ = w.Write([]byte(c.body))
 			}))
@@ -423,7 +423,7 @@ func TestWebhookURL(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Setenv(webhookURLEnv, c.env)
 			var opts Options
-			opts.Args.Url = c.arg
+			opts.Args.URL = c.arg
 			if got := webhookURL(opts); got != c.expected {
 				t.Errorf("webhookURL() = %q, want %q", got, c.expected)
 			}
@@ -438,7 +438,7 @@ func TestRun(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	failTS := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	failTS := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte("invalid_payload"))
 	}))

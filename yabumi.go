@@ -1,7 +1,9 @@
+// yabumi は Slack の Incoming Webhook にメッセージを投稿するコマンドラインツール
 package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,8 +42,8 @@ const webhookURLEnv = "SLACK_WEBHOOK_URL"
 
 // webhookURL は引数で指定された Webhook URL を返す。未指定の場合は環境変数から取得する
 func webhookURL(opts Options) string {
-	if opts.Args.Url != "" {
-		return opts.Args.Url
+	if opts.Args.URL != "" {
+		return opts.Args.URL
 	}
 	return os.Getenv(webhookURLEnv)
 }
@@ -59,8 +61,8 @@ type Options struct {
 	AuthorName      string   `long:"author-name" description:"author_name (attachment)"`
 	AuthorLink      string   `long:"author-link" description:"author_link (attachment)"`
 	AuthorIcon      string   `long:"author-icon" description:"author_icon (attachment)"`
-	ImageUrl        string   `long:"image-url" description:"image url (attachment)"`
-	ThumbUrl        string   `long:"thumb-url" description:"thumbnail image url (attachment)"`
+	ImageURL        string   `long:"image-url" description:"image url (attachment)"`
+	ThumbURL        string   `long:"thumb-url" description:"thumbnail image url (attachment)"`
 	Footer          string   `long:"footer" description:"footer text (attachment)"`
 	FooterIcon      string   `long:"footer-icon" description:"footer icon url (attachment)"`
 	Message         string   `short:"m" long:"message" description:"pass message instead of read stdin"`
@@ -69,7 +71,7 @@ type Options struct {
 	Debug           bool     `short:"D" long:"debug" description:"enable debug mode. do not send request, show json only"`
 	Version         bool     `short:"v" long:"version" description:"show version"`
 	Args            struct {
-		Url string `description:"slack webhook endpoint url (default: $SLACK_WEBHOOK_URL)"`
+		URL string `positional-arg-name:"Url" description:"slack webhook endpoint url (default: $SLACK_WEBHOOK_URL)"`
 	} `positional-args:"yes"`
 }
 
@@ -92,8 +94,8 @@ type Attachment struct {
 	TitleLink  string  `json:"title_link,omitempty"` // URL
 	Text       string  `json:"text,omitempty"`
 	Fields     []Field `json:"fields,omitempty"`
-	ImageUrl   string  `json:"image_url,omitempty"` // URL
-	ThumbUrl   string  `json:"thumb_url,omitempty"` // URL
+	ImageURL   string  `json:"image_url,omitempty"` // URL
+	ThumbURL   string  `json:"thumb_url,omitempty"` // URL
 	Footer     string  `json:"footer,omitempty"`
 	FooterIcon string  `json:"footer_icon,omitempty"` // URL
 }
@@ -213,8 +215,9 @@ func statusError(resp *http.Response) error {
 }
 
 func postMessage(endpoint string, json []byte) error {
-	req, err := http.NewRequest(
-		"POST",
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		endpoint,
 		bytes.NewBuffer(json),
 	)
@@ -263,8 +266,8 @@ func buildJSON(text string, opts Options) ([]byte, error) {
 		a.AuthorName = opts.AuthorName
 		a.AuthorLink = opts.AuthorLink
 		a.AuthorIcon = opts.AuthorIcon
-		a.ImageUrl = opts.ImageUrl
-		a.ThumbUrl = opts.ThumbUrl
+		a.ImageURL = opts.ImageURL
+		a.ThumbURL = opts.ThumbURL
 		a.Footer = opts.Footer
 		a.FooterIcon = opts.FooterIcon
 		m.Attachments = append(m.Attachments, a)
