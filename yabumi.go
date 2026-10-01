@@ -169,7 +169,9 @@ func buildJSON(text string, opts Options) ([]byte, error) {
 		a.Fallback = text
 		a.Text = text
 		a.Title = opts.Title
+		a.TitleLink = opts.TitleLink
 		a.Color = opts.Color
+		a.Pretext = opts.PreText
 		if len(opts.Fields) > 0 {
 			for _, field := range opts.Fields {
 				a.Fields = append(a.Fields, parseField(field))

@@ -339,3 +339,55 @@ func TestBuildJSON3(t *testing.T) {
 		t.Errorf("field[0]['short'] in JSON is unexpected: %s != %v", "true", js_f_short1)
 	}
 }
+
+func TestBuildJSONAttachmentOptions(t *testing.T) {
+	args := []string{
+		"--attachment",
+		"--title", "title",
+		"--title-link", "https://example.com/title",
+		"--pretext", "pretext",
+		"--author-name", "author",
+		"--author-link", "https://example.com/author",
+		"--author-icon", "https://example.com/author.png",
+		"--image-url", "https://example.com/image.png",
+		"--thumb-url", "https://example.com/thumb.png",
+		"--footer", "footer",
+		"--footer-icon", "https://example.com/footer.png",
+	}
+	var opts Options
+	if _, err := flags.ParseArgs(&opts, args); err != nil {
+		t.Fatal(err)
+	}
+	b, err := buildJSON("test", opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js, err := simplejson.NewJson(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := map[string]string{
+		"title":       "title",
+		"title_link":  "https://example.com/title",
+		"pretext":     "pretext",
+		"author_name": "author",
+		"author_link": "https://example.com/author",
+		"author_icon": "https://example.com/author.png",
+		"image_url":   "https://example.com/image.png",
+		"thumb_url":   "https://example.com/thumb.png",
+		"footer":      "footer",
+		"footer_icon": "https://example.com/footer.png",
+	}
+	a := js.Get("attachments").GetIndex(0)
+	for key, want := range expected {
+		got, err := a.Get(key).String()
+		if err != nil {
+			t.Errorf("%s not found in attachment: %v", key, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("%s in JSON is unexpected: %s != %s", key, got, want)
+		}
+	}
+}
