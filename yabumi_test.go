@@ -479,3 +479,37 @@ func TestSendWithRetryOn429(t *testing.T) {
 		})
 	}
 }
+
+func TestPostMessageErrorContainsResponseBody(t *testing.T) {
+	long := strings.Repeat("a", maxErrorBodySize+100)
+	cases := []struct {
+		name     string
+		status   int
+		body     string
+		expected string
+	}{
+		{"slack error", http.StatusBadRequest, "invalid_payload", "unexpected response status: 400 Bad Request: invalid_payload"},
+		{"rate limited", http.StatusTooManyRequests, "rate_limited", "unexpected response status: 429 Too Many Requests: rate_limited"},
+		{"server error", http.StatusInternalServerError, "internal_error", "unexpected response status: 500 Internal Server Error: internal_error"},
+		{"empty body", http.StatusBadRequest, "", "unexpected response status: 400 Bad Request"},
+		{"multi-line body", http.StatusBadGateway, "<html>\n  <body>Bad Gateway</body>\n</html>\n", "unexpected response status: 502 Bad Gateway: <html> <body>Bad Gateway</body> </html>"},
+		{"long body", http.StatusBadRequest, long, "unexpected response status: 400 Bad Request: " + long[:maxErrorBodySize] + "..."},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(c.status)
+				_, _ = w.Write([]byte(c.body))
+			}))
+			defer ts.Close()
+
+			err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if err.Error() != c.expected {
+				t.Errorf("unexpected error message:\n got: %v\nwant: %v", err, c.expected)
+			}
+		})
+	}
+}
