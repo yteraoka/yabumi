@@ -240,7 +240,7 @@ func main() {
 			log.Fatal("the required argument `Url` was not provided")
 		}
 		if err := sendWithRetry(opts.Args.Url, b, retryCount, retryBaseWait); err != nil {
-			log.Fatal("all attempts failed")
+			log.Fatalf("failed to post message: %v", err)
 		}
 	}
 }
