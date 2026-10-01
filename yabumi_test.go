@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bitly/go-simplejson"
 	flags "github.com/jessevdk/go-flags"
@@ -410,5 +411,71 @@ func TestPostMessageErrorDoesNotContainURL(t *testing.T) {
 		if strings.Contains(err.Error(), secret) {
 			t.Errorf("%s: error message contains webhook url: %v", c.name, err)
 		}
+	}
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cases := []struct {
+		input    string
+		expected time.Duration
+	}{
+		{"", 0},
+		{"5", 5 * time.Second},
+		{"0", 0},
+		{"-1", 0},
+		{"invalid", 0},
+		{now.Add(10 * time.Second).Format(http.TimeFormat), 10 * time.Second},
+		{now.Add(-10 * time.Second).Format(http.TimeFormat), 0},
+	}
+	for _, c := range cases {
+		if got := parseRetryAfter(c.input, now); got != c.expected {
+			t.Errorf("parseRetryAfter(%q) = %v, want %v", c.input, got, c.expected)
+		}
+	}
+}
+
+func TestSendWithRetryOn429(t *testing.T) {
+	cases := []struct {
+		name       string
+		retryAfter string
+		expected   time.Duration
+	}{
+		{"without Retry-After", "", time.Second},
+		{"with Retry-After", "5", 5 * time.Second},
+		{"Retry-After shorter than backoff", "0", time.Second},
+		{"Retry-After exceeds max", "3600", maxRetryAfter},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var waits []time.Duration
+			orig := sleep
+			sleep = func(d time.Duration) { waits = append(waits, d) }
+			defer func() { sleep = orig }()
+
+			called := 0
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called++
+				if called < 2 {
+					if c.retryAfter != "" {
+						w.Header().Set("Retry-After", c.retryAfter)
+					}
+					w.WriteHeader(http.StatusTooManyRequests)
+				} else {
+					w.WriteHeader(http.StatusOK)
+				}
+			}))
+			defer ts.Close()
+
+			if err := sendWithRetry(ts.URL, []byte(`{}`), 3, time.Second); err != nil {
+				t.Errorf("expected no error, got: %v", err)
+			}
+			if called != 2 {
+				t.Errorf("expected 2 calls, got %d", called)
+			}
+			if len(waits) != 1 || waits[0] != c.expected {
+				t.Errorf("expected wait [%v], got %v", c.expected, waits)
+			}
+		})
 	}
 }
