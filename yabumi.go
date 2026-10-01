@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,9 +27,14 @@ const (
 	httpTimeout   = 3 * time.Second
 	retryCount    = 3
 	retryBaseWait = time.Second
+	// Retry-After で指定された待ち時間の上限
+	maxRetryAfter = 30 * time.Second
 )
 
 var httpClient = &http.Client{Timeout: httpTimeout}
+
+// sleep はテストで差し替えられるようにする
+var sleep = time.Sleep
 
 type Options struct {
 	Channel         string   `short:"C" long:"channel" description:"slack channel to post"`
@@ -115,13 +121,43 @@ type permanentError struct {
 func (e *permanentError) Error() string { return e.err.Error() }
 func (e *permanentError) Unwrap() error { return e.err }
 
+// retryAfterError はサーバーから待ち時間が指定されたリトライ可能なエラーを表す
+type retryAfterError struct {
+	err   error
+	after time.Duration
+}
+
+func (e *retryAfterError) Error() string { return e.err.Error() }
+func (e *retryAfterError) Unwrap() error { return e.err }
+
+// parseRetryAfter は Retry-After ヘッダ (秒数または HTTP-date) を解釈する
+func parseRetryAfter(v string, now time.Time) time.Duration {
+	if v == "" {
+		return 0
+	}
+	if sec, err := strconv.Atoi(v); err == nil {
+		if sec < 0 {
+			return 0
+		}
+		return time.Duration(sec) * time.Second
+	}
+	if t, err := http.ParseTime(v); err == nil {
+		return max(t.Sub(now), 0)
+	}
+	return 0
+}
+
 func sendWithRetry(endpoint string, body []byte, retries int, baseWait time.Duration) error {
 	var lastErr error
 	for i := range retries {
 		if i > 0 {
 			wait := baseWait * (1 << (i - 1))
+			var ra *retryAfterError
+			if errors.As(lastErr, &ra) {
+				wait = max(wait, min(ra.after, maxRetryAfter))
+			}
 			log.Printf("waiting %v before retry...", wait)
-			time.Sleep(wait)
+			sleep(wait)
 		}
 		lastErr = postMessage(endpoint, body)
 		if lastErr == nil {
@@ -160,6 +196,12 @@ func postMessage(endpoint string, json []byte) error {
 		return fmt.Errorf("failed to send request: %w", redactURL(err))
 	}
 	defer resp.Body.Close() //nolint:errcheck
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return &retryAfterError{
+			err:   fmt.Errorf("unexpected response status: %s", resp.Status),
+			after: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()),
+		}
+	}
 	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 		return &permanentError{err: fmt.Errorf("unexpected response status: %s", resp.Status)}
 	}
