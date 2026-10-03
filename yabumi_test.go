@@ -59,7 +59,18 @@ func TestBuildJSON(t *testing.T) {
 			expected: SlackMessage{
 				Markdown: true,
 				Attachments: []Attachment{
-					{Fallback: "hello", Text: "hello", Title: "test title"},
+					{Fallback: "hello", Text: "hello", Title: "test title", MrkdwnIn: []string{"text", "pretext", "fields"}},
+				},
+			},
+		},
+		{
+			name: "attachment with disable markdown",
+			args: []string{"--attachment", "--disable-markdown"},
+			text: "hello",
+			expected: SlackMessage{
+				Markdown: false,
+				Attachments: []Attachment{
+					{Fallback: "hello", Text: "hello"},
 				},
 			},
 		},
@@ -107,6 +118,7 @@ func TestBuildJSON(t *testing.T) {
 							{Title: "Service", Value: "test", Short: false},
 							{Title: "Note"},
 						},
+						MrkdwnIn: []string{"text", "pretext", "fields"},
 					},
 				},
 			},

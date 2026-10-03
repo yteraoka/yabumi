@@ -98,6 +98,9 @@ type Attachment struct {
 	ThumbURL   string  `json:"thumb_url,omitempty"` // URL
 	Footer     string  `json:"footer,omitempty"`
 	FooterIcon string  `json:"footer_icon,omitempty"` // URL
+	// mrkdwn で整形するフィールド名 ("text", "pretext", "fields")。
+	// トップレベルの mrkdwn は attachment には効かないため、こちらで指定する
+	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
 }
 
 type Field struct {
@@ -270,6 +273,9 @@ func buildJSON(text string, opts Options) ([]byte, error) {
 		a.ThumbURL = opts.ThumbURL
 		a.Footer = opts.Footer
 		a.FooterIcon = opts.FooterIcon
+		if !opts.DisableMarkdown {
+			a.MrkdwnIn = []string{"text", "pretext", "fields"}
+		}
 		m.Attachments = append(m.Attachments, a)
 	} else {
 		m.Text = text
