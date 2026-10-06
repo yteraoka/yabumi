@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.6.0](https://github.com/yteraoka/yabumi/compare/v0.5.1...v0.6.0) - 2026-10-06
+
+- Fix --pretext and --title-link not being set in attachment by @yteraoka in https://github.com/yteraoka/yabumi/pull/93
+- Exit with status 0 when --help is given by @yteraoka in https://github.com/yteraoka/yabumi/pull/95
+- Redact webhook URL from error messages by @yteraoka in https://github.com/yteraoka/yabumi/pull/96
+- Include the cause in the final error message by @yteraoka in https://github.com/yteraoka/yabumi/pull/97
+- Retry on 429 Too Many Requests honoring Retry-After by @yteraoka in https://github.com/yteraoka/yabumi/pull/98
+- Include response body in error messages by @yteraoka in https://github.com/yteraoka/yabumi/pull/99
+- Allow webhook URL to be set by SLACK_WEBHOOK_URL by @yteraoka in https://github.com/yteraoka/yabumi/pull/100
+- Extract run function from main for testability by @yteraoka in https://github.com/yteraoka/yabumi/pull/101
+- Clean up tests and drop go-simplejson dependency by @yteraoka in https://github.com/yteraoka/yabumi/pull/102
+- Run tests on push to main and add go vet and race detector by @yteraoka in https://github.com/yteraoka/yabumi/pull/103
+- Minimize GITHUB_TOKEN permissions in workflows by @yteraoka in https://github.com/yteraoka/yabumi/pull/104
+- Add zizmor workflow to audit GitHub Actions by @yteraoka in https://github.com/yteraoka/yabumi/pull/106
+- Add golangci-lint configuration by @yteraoka in https://github.com/yteraoka/yabumi/pull/107
+- Check go.mod tidiness in CI instead of running go mod tidy at release by @yteraoka in https://github.com/yteraoka/yabumi/pull/108
+- Disable Go cache in release workflow to prevent cache poisoning by @yteraoka in https://github.com/yteraoka/yabumi/pull/109
+- Apply markdown setting to attachments via mrkdwn_in by @yteraoka in https://github.com/yteraoka/yabumi/pull/110
+- Update Songmu/tagpr action to v1.21.1 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/111
+
 ## [v0.5.1](https://github.com/yteraoka/yabumi/compare/v0.5.0...v0.5.1) - 2026-09-30
 
 - feat: renovate で minimumReleaseAge を 7 days に設定 by @yteraoka in https://github.com/yteraoka/yabumi/pull/48
