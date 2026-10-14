@@ -3,6 +3,53 @@ Yabumi
 
 Command line tool for post the message to slack.
 
+Installation
+------------
+
+### Homebrew
+
+```bash
+$ brew install --cask yteraoka/cask/yabumi
+```
+
+### mise
+
+Install with the [mise](https://mise.jdx.dev/) `github` backend, which downloads the binary
+from GitHub Releases.
+
+```bash
+$ mise use -g github:yteraoka/yabumi
+```
+
+To use it in a project, add it to `mise.toml` (specify a version such as `"0.6.0"` to pin it):
+
+```toml
+[tools]
+"github:yteraoka/yabumi" = "latest"
+```
+
+### GitHub Releases
+
+Download the archive for your OS and architecture from
+[GitHub Releases](https://github.com/yteraoka/yabumi/releases), extract it, and place the
+`yabumi` binary in a directory on your `PATH`.
+
+```bash
+$ VERSION=$(curl -sSL -o /dev/null -w '%{url_effective}' https://github.com/yteraoka/yabumi/releases/latest | sed 's|.*/v||')
+$ curl -sSLO https://github.com/yteraoka/yabumi/releases/download/v${VERSION}/yabumi_${VERSION}_linux_amd64.tar.gz
+$ tar xzf yabumi_${VERSION}_linux_amd64.tar.gz yabumi
+$ sudo install yabumi /usr/local/bin/
+```
+
+Archives are available for `linux`, `darwin` and `windows` on `amd64` and `arm64`.
+Verify the download with `checksums.txt` attached to each release.
+
+### go install
+
+```bash
+$ go install github.com/yteraoka/yabumi@latest
+```
+
 Usage
 -----
 
@@ -63,8 +110,20 @@ $ fortune | ./yabumi
 An empty message (empty stdin or `--message ""`) is rejected before sending,
 because Slack responds with `400 no_text`.
 
-`--timeout` sets the HTTP timeout per attempt, and `--retry` sets how many times a failed
-request (network error, 429 or 5xx) is retried with exponential backoff.
+Retry
+-----
+
+When posting fails, yabumi retries the request.
+
+- The number of retries is set by `--retry` (default: `2`, so up to 3 attempts in total).
+  `--retry 0` disables retry.
+- Each attempt times out after `--timeout` (default: `3s`).
+- Retried: network errors (including timeouts), `429 Too Many Requests` and `5xx` responses.
+- Not retried: other `4xx` responses such as `400 invalid_payload` or `404 no_service`,
+  since sending the same request again would fail the same way.
+- The wait between attempts grows exponentially: 1s, 2s, 4s, ...
+  For `429`, the `Retry-After` header is honored if it is longer (capped at 30s).
+- If all attempts fail, yabumi exits with status `1` and logs the response status and body.
 
 ```bash
 $ fortune | ./yabumi --timeout 10s --retry 5
