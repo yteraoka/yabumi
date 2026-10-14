@@ -26,16 +26,12 @@ var (
 )
 
 const (
-	httpTimeout   = 3 * time.Second
-	retryCount    = 3
 	retryBaseWait = time.Second
 	// Retry-After で指定された待ち時間の上限
 	maxRetryAfter = 30 * time.Second
 	// エラーメッセージに含めるレスポンスボディの最大バイト数
 	maxErrorBodySize = 512
 )
-
-var httpClient = &http.Client{Timeout: httpTimeout}
 
 // webhookURLEnv は Webhook URL を指定する環境変数名
 const webhookURLEnv = "SLACK_WEBHOOK_URL"
@@ -52,24 +48,26 @@ func webhookURL(opts Options) string {
 var sleep = time.Sleep
 
 type Options struct {
-	Channel         string   `short:"C" long:"channel" description:"slack channel to post"`
-	UseAttach       bool     `short:"a" long:"attachment" description:"use attachment"`
-	Title           string   `short:"t" long:"title" description:"Title text (attachment)"`
-	TitleLink       string   `long:"title-link" description:"Title link url (attachment)"`
-	Color           string   `short:"c" long:"color" description:"Color code or 'good', 'warning', 'danger' (attachment)"`
-	PreText         string   `short:"p" long:"pretext" description:"optional text that appears above the message attachment block (attachment)"`
-	AuthorName      string   `long:"author-name" description:"author_name (attachment)"`
-	AuthorLink      string   `long:"author-link" description:"author_link (attachment)"`
-	AuthorIcon      string   `long:"author-icon" description:"author_icon (attachment)"`
-	ImageURL        string   `long:"image-url" description:"image url (attachment)"`
-	ThumbURL        string   `long:"thumb-url" description:"thumbnail image url (attachment)"`
-	Footer          string   `long:"footer" description:"footer text (attachment)"`
-	FooterIcon      string   `long:"footer-icon" description:"footer icon url (attachment)"`
-	Message         string   `short:"m" long:"message" description:"pass message instead of read stdin"`
-	Fields          []string `short:"f" long:"field" description:"\"title|value|short\" (attachment)"`
-	DisableMarkdown bool     `short:"M" long:"disable-markdown" description:"disable markdown processing"`
-	Debug           bool     `short:"D" long:"debug" description:"enable debug mode. do not send request, show json only"`
-	Version         bool     `short:"v" long:"version" description:"show version"`
+	Channel         string        `short:"C" long:"channel" description:"slack channel to post"`
+	UseAttach       bool          `short:"a" long:"attachment" description:"use attachment"`
+	Title           string        `short:"t" long:"title" description:"Title text (attachment)"`
+	TitleLink       string        `long:"title-link" description:"Title link url (attachment)"`
+	Color           string        `short:"c" long:"color" description:"Color code or 'good', 'warning', 'danger' (attachment)"`
+	PreText         string        `short:"p" long:"pretext" description:"optional text that appears above the message attachment block (attachment)"`
+	AuthorName      string        `long:"author-name" description:"author_name (attachment)"`
+	AuthorLink      string        `long:"author-link" description:"author_link (attachment)"`
+	AuthorIcon      string        `long:"author-icon" description:"author_icon (attachment)"`
+	ImageURL        string        `long:"image-url" description:"image url (attachment)"`
+	ThumbURL        string        `long:"thumb-url" description:"thumbnail image url (attachment)"`
+	Footer          string        `long:"footer" description:"footer text (attachment)"`
+	FooterIcon      string        `long:"footer-icon" description:"footer icon url (attachment)"`
+	Message         string        `short:"m" long:"message" description:"pass message instead of read stdin"`
+	Fields          []string      `short:"f" long:"field" description:"\"title|value|short\" (attachment)"`
+	DisableMarkdown bool          `short:"M" long:"disable-markdown" description:"disable markdown processing"`
+	Timeout         time.Duration `long:"timeout" default:"3s" description:"HTTP request timeout per attempt"`
+	Retry           int           `long:"retry" default:"2" description:"number of retries on failure (0 disables retry)"`
+	Debug           bool          `short:"D" long:"debug" description:"enable debug mode. do not send request, show json only"`
+	Version         bool          `short:"v" long:"version" description:"show version"`
 	Args            struct {
 		URL string `positional-arg-name:"Url" description:"slack webhook endpoint url (default: $SLACK_WEBHOOK_URL)"`
 	} `positional-args:"yes"`
@@ -165,9 +163,10 @@ func parseRetryAfter(v string, now time.Time) time.Duration {
 	return 0
 }
 
-func sendWithRetry(logger *log.Logger, endpoint string, body []byte, retries int, baseWait time.Duration) error {
+// sendWithRetry は最大 attempts 回まで送信を試みる
+func sendWithRetry(logger *log.Logger, client *http.Client, endpoint string, body []byte, attempts int, baseWait time.Duration) error {
 	var lastErr error
-	for i := range retries {
+	for i := range attempts {
 		if i > 0 {
 			wait := baseWait * (1 << (i - 1))
 			var ra *retryAfterError
@@ -177,7 +176,7 @@ func sendWithRetry(logger *log.Logger, endpoint string, body []byte, retries int
 			logger.Printf("waiting %v before retry...", wait)
 			sleep(wait)
 		}
-		lastErr = postMessage(endpoint, body)
+		lastErr = postMessage(client, endpoint, body)
 		if lastErr == nil {
 			return nil
 		}
@@ -217,7 +216,7 @@ func statusError(resp *http.Response) error {
 	return fmt.Errorf("unexpected response status: %s: %s", resp.Status, body)
 }
 
-func postMessage(endpoint string, json []byte) error {
+func postMessage(client *http.Client, endpoint string, json []byte) error {
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodPost,
@@ -228,7 +227,7 @@ func postMessage(endpoint string, json []byte) error {
 		return fmt.Errorf("failed to create request: %w", redactURL(err))
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", redactURL(err))
 	}
@@ -247,6 +246,20 @@ func postMessage(endpoint string, json []byte) error {
 	}
 
 	return nil
+}
+
+// isEmptyMessage は送信内容が空かどうかを返す。
+// 本文が空のメッセージは Slack に 400 no_text で拒否されるため送信前に検出する。
+// attachment の場合は本文以外の要素があれば空とはみなさない
+func isEmptyMessage(text string, opts Options) bool {
+	if strings.TrimSpace(text) != "" {
+		return false
+	}
+	if !opts.UseAttach {
+		return true
+	}
+	return opts.Title == "" && opts.PreText == "" && len(opts.Fields) == 0 &&
+		opts.AuthorName == "" && opts.ImageURL == "" && opts.ThumbURL == "" && opts.Footer == ""
 }
 
 func buildJSON(text string, opts Options) ([]byte, error) {
@@ -325,9 +338,22 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			logger.Print(err)
 			return 1
 		}
-		text = strings.TrimRight(string(b), "\n")
+		text = strings.TrimRight(string(b), "\r\n")
 	} else {
 		text = opts.Message
+	}
+
+	if isEmptyMessage(text, opts) {
+		logger.Print("message is empty: pass it via stdin or --message")
+		return 1
+	}
+	if opts.Timeout <= 0 {
+		logger.Print("--timeout must be positive")
+		return 1
+	}
+	if opts.Retry < 0 {
+		logger.Print("--retry must not be negative")
+		return 1
 	}
 
 	b, err := buildJSON(text, opts)
@@ -346,7 +372,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		logger.Printf("webhook url is not specified: pass it as an argument or set %s", webhookURLEnv)
 		return 1
 	}
-	if err := sendWithRetry(logger, endpoint, b, retryCount, retryBaseWait); err != nil {
+	client := &http.Client{Timeout: opts.Timeout}
+	if err := sendWithRetry(logger, client, endpoint, b, opts.Retry+1, retryBaseWait); err != nil {
 		logger.Printf("failed to post message: %v", err)
 		return 1
 	}

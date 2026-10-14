@@ -209,7 +209,7 @@ func TestPostMessageStatus(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
+			err := postMessage(http.DefaultClient, ts.URL, []byte(`{"text":"hello"}`))
 			if gotContentType != "application/json" {
 				t.Errorf("Content-Type = %q, want application/json", gotContentType)
 			}
@@ -238,7 +238,7 @@ func TestPostMessageStatus(t *testing.T) {
 }
 
 func TestPostMessageNetworkError(t *testing.T) {
-	err := postMessage(closedServerURL(t), []byte(`{"text":"hello"}`))
+	err := postMessage(http.DefaultClient, closedServerURL(t), []byte(`{"text":"hello"}`))
 	if err == nil {
 		t.Error("expected error for unreachable server, got nil")
 	}
@@ -267,7 +267,7 @@ func TestSendWithRetry(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, 0)
+			err := sendWithRetry(discardLogger, http.DefaultClient, ts.URL, []byte(`{}`), 3, 0)
 			if (err != nil) != c.wantErr {
 				t.Errorf("error = %v, wantErr %v", err, c.wantErr)
 			}
@@ -289,7 +289,7 @@ func TestSendWithRetryBackoff(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	if err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 4, time.Second); err == nil {
+	if err := sendWithRetry(discardLogger, http.DefaultClient, ts.URL, []byte(`{}`), 4, time.Second); err == nil {
 		t.Error("expected error when all attempts fail, got nil")
 	}
 	expected := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
@@ -308,7 +308,7 @@ func TestPostMessageErrorDoesNotContainURL(t *testing.T) {
 		{"invalid url", "http://[::1/services/" + secret},
 	}
 	for _, c := range cases {
-		err := postMessage(c.url, []byte(`{"text":"hello"}`))
+		err := postMessage(http.DefaultClient, c.url, []byte(`{"text":"hello"}`))
 		if err == nil {
 			t.Errorf("%s: expected error, got nil", c.name)
 			continue
@@ -372,7 +372,7 @@ func TestSendWithRetryOn429(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			if err := sendWithRetry(discardLogger, ts.URL, []byte(`{}`), 3, time.Second); err != nil {
+			if err := sendWithRetry(discardLogger, http.DefaultClient, ts.URL, []byte(`{}`), 3, time.Second); err != nil {
 				t.Errorf("expected no error, got: %v", err)
 			}
 			if called != 2 {
@@ -408,7 +408,7 @@ func TestPostMessageErrorContainsResponseBody(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			err := postMessage(ts.URL, []byte(`{"text":"hello"}`))
+			err := postMessage(http.DefaultClient, ts.URL, []byte(`{"text":"hello"}`))
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -475,6 +475,15 @@ func TestRun(t *testing.T) {
 		{name: "send via argument", args: []string{"-m", "hi", ts.URL}, expectedCode: 0, sentText: "hi"},
 		{name: "send via env", args: []string{}, stdin: "from env\n", env: ts.URL, expectedCode: 0, sentText: "from env"},
 		{name: "send fails", args: []string{"-m", "hi", failTS.URL}, expectedCode: 1, stderr: "failed to post message: unexpected response status: 400 Bad Request: invalid_payload"},
+		{name: "empty stdin", args: []string{"-D"}, stdin: "", expectedCode: 1, stderr: "message is empty"},
+		{name: "whitespace only stdin", args: []string{"-D"}, stdin: " \r\n\n", expectedCode: 1, stderr: "message is empty"},
+		{name: "empty attachment", args: []string{"-D", "-a"}, stdin: "\n", expectedCode: 1, stderr: "message is empty"},
+		{name: "attachment with title only", args: []string{"-D", "-a", "-t", "title"}, stdin: "", expectedCode: 0, stdout: `"title": "title"`},
+		{name: "trims trailing CRLF", args: []string{"-m", "", ts.URL}, stdin: "hello\r\n\r\n", expectedCode: 0, sentText: "hello"},
+		{name: "invalid timeout", args: []string{"--timeout", "0s", "-m", "hi", ts.URL}, expectedCode: 1, stderr: "--timeout must be positive"},
+		{name: "negative retry", args: []string{"--retry", "-1", "-m", "hi", ts.URL}, expectedCode: 1, stderr: "--retry must not be negative"},
+		{name: "send with options", args: []string{"--timeout", "10s", "--retry", "0", "-m", "hi", ts.URL}, expectedCode: 0, sentText: "hi"},
+		{name: "no retry", args: []string{"--retry", "0", "-m", "hi", closedServerURL(t)}, expectedCode: 1, stderr: "attempt 1 failed"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
