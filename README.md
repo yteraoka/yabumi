@@ -12,6 +12,22 @@ Installation
 $ brew install --cask yteraoka/cask/yabumi
 ```
 
+### mise
+
+Install with the [mise](https://mise.jdx.dev/) `github` backend, which downloads the binary
+from GitHub Releases.
+
+```bash
+$ mise use -g github:yteraoka/yabumi
+```
+
+To pin the version in a project, add it to `mise.toml`:
+
+```toml
+[tools]
+"github:yteraoka/yabumi" = "latest"
+```
+
 ### GitHub Releases
 
 Download the archive for your OS and architecture from
