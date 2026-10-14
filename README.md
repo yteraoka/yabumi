@@ -28,6 +28,9 @@ Application Options:
   -m, --message=          pass message instead of read stdin
   -f, --field=            "title|value|short" (attachment)
   -M, --disable-markdown  disable markdown processing
+      --timeout=          HTTP request timeout per attempt (default: 3s)
+      --retry=            number of retries on failure (0 disables retry)
+                          (default: 2)
   -D, --debug             enable debug mode. do not send request, show json only
   -v, --version           show version
 
@@ -56,6 +59,21 @@ so that the URL does not remain in your shell history or the process list.
 $ export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/xxx/yyy/zzzz
 $ fortune | ./yabumi
 ```
+
+An empty message (empty stdin or `--message ""`) is rejected before sending,
+because Slack responds with `400 no_text`.
+
+`--timeout` sets the HTTP timeout per attempt, and `--retry` sets how many times a failed
+request (network error, 429 or 5xx) is retried with exponential backoff.
+
+```bash
+$ fortune | ./yabumi --timeout 10s --retry 5
+```
+
+> [!NOTE]
+> `--channel` only works with legacy Incoming Webhooks (the custom integration).
+> Webhook URLs issued by a Slack App are bound to a single channel, and Slack ignores
+> the `channel` field for them. Create a webhook for each channel you want to post to.
 
 Attachment
 ----------
