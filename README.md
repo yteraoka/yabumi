@@ -21,7 +21,7 @@ from GitHub Releases.
 $ mise use -g github:yteraoka/yabumi
 ```
 
-To pin the version in a project, add it to `mise.toml`:
+To use it in a project, add it to `mise.toml` (specify a version such as `"0.6.0"` to pin it):
 
 ```toml
 [tools]
