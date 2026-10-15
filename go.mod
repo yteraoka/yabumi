@@ -2,7 +2,7 @@ module github.com/yteraoka/yabumi
 
 go 1.24
 
-toolchain go1.27.1
+toolchain go1.27.2
 
 require github.com/jessevdk/go-flags v1.6.1
 
