@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.6.1](https://github.com/yteraoka/yabumi/compare/v0.6.0...v0.6.1) - 2026-10-15
+
+- README にインストール方法とリトライ挙動を記載 by @yteraoka in https://github.com/yteraoka/yabumi/pull/114
+- Update go toolchain directive to v1.27.2 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/116
+- Update dependency go to v1.27.2 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/117
+
 ## [v0.6.0](https://github.com/yteraoka/yabumi/compare/v0.5.1...v0.6.0) - 2026-10-14
 
 - Fix --pretext and --title-link not being set in attachment by @yteraoka in https://github.com/yteraoka/yabumi/pull/93
