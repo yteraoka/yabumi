@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.6.2](https://github.com/yteraoka/yabumi/compare/v0.6.1...v0.6.2) - 2026-10-30
+
+- Update Songmu/tagpr action to v1.21.4 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/125
+- Update zizmorcore/zizmor-action action to v0.8.0 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/127
+
 ## [v0.6.1](https://github.com/yteraoka/yabumi/compare/v0.6.0...v0.6.1) - 2026-10-27
 
 - README にインストール方法とリトライ挙動を記載 by @yteraoka in https://github.com/yteraoka/yabumi/pull/114
