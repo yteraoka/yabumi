@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.6.2](https://github.com/yteraoka/yabumi/compare/v0.6.1...v0.6.2) - 2026-11-17
+
+- Update Songmu/tagpr action to v1.21.4 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/125
+- Update zizmorcore/zizmor-action action to v0.8.0 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/127
+- Update zizmorcore/zizmor-action action to v0.8.1 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/128
+- Update Songmu/tagpr action to v1.22.0 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/129
+- Update go toolchain directive to v1.27.4 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/130
+- Update dependency go to v1.27.4 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/131
+
 ## [v0.6.1](https://github.com/yteraoka/yabumi/compare/v0.6.0...v0.6.1) - 2026-10-27
 
 - README にインストール方法とリトライ挙動を記載 by @yteraoka in https://github.com/yteraoka/yabumi/pull/114
