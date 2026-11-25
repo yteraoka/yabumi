@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.6.3](https://github.com/yteraoka/yabumi/compare/v0.6.2...v0.6.3) - 2026-11-25
+
+- Update actions/setup-go action to v7.1.0 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/132
+- Update actions/create-github-app-token action to v3.4.0 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/134
+
 ## [v0.6.2](https://github.com/yteraoka/yabumi/compare/v0.6.1...v0.6.2) - 2026-11-17
 
 - Update Songmu/tagpr action to v1.21.4 by @renovate[bot] in https://github.com/yteraoka/yabumi/pull/125
